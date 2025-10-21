@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: asset-pulse-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: asset_pulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+    networks:
+      - asset-pulse-network
+
+  api:
+    build: .
+    container_name: asset-pulse-api
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: development
+      APP_PORT: 8080
+      APP_NAME: asset-pulse-api
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: asset_pulse
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      SSL_MODE: disable
+      TIME_ZONE: Asia/Bangkok
+    depends_on:
+      - postgres
+    networks:
+      - asset-pulse-network
+
+volumes:
+  postgres_data:
+
+networks:
+  asset-pulse-network:
+    driver: bridge
+
