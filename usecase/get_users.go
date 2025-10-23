@@ -6,7 +6,7 @@ import (
 	"context"
 )
 
-func (u *useCase) GetUsers(ctx context.Context, in *models.GetUsersInp) (*models.GetUsersResp, *apperrs.AppError) {
+func (u *useCase) GetUsers(ctx context.Context, in *models.GetUsersInp) (*models.GetUsersResp, error) {
 	// Set default pagination
 	page := in.Page
 	pageSize := in.PageSize
@@ -25,13 +25,13 @@ func (u *useCase) GetUsers(ctx context.Context, in *models.GetUsersInp) (*models
 	// Get users from database
 	users, err := u.dbRepo.GetUsers(ctx, in.CompanyCode, in.Status, pageSize, offset)
 	if err != nil {
-		return nil, apperrs.ErrInternalServer().New().WithCause(err)
+		return nil, apperrs.ErrInternal
 	}
 
 	// Get total count
 	count, err := u.dbRepo.CountUsers(ctx, in.CompanyCode, in.Status)
 	if err != nil {
-		return nil, apperrs.ErrInternalServer().New().WithCause(err)
+		return nil, apperrs.ErrInternal
 	}
 
 	// Transform to response
@@ -39,6 +39,7 @@ func (u *useCase) GetUsers(ctx context.Context, in *models.GetUsersInp) (*models
 	for i, user := range *users {
 		userResponses[i] = models.UserResponse{
 			ID:             user.ID,
+			Username:       user.Username,
 			CompanyCode:    user.CompanyCode,
 			DepartmentCode: user.DepartmentCode,
 			EntraID:        user.EntraID,
@@ -55,4 +56,3 @@ func (u *useCase) GetUsers(ctx context.Context, in *models.GetUsersInp) (*models
 		Total: int(count),
 	}, nil
 }
-

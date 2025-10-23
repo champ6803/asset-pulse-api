@@ -4,6 +4,7 @@ import (
 	config "asset-pulse-api/configs"
 	"asset-pulse-api/handler"
 	dbRepo "asset-pulse-api/repositories/database"
+	"asset-pulse-api/services/ai"
 	"asset-pulse-api/usecase"
 	mygorm "asset-pulse-api/utils/gorm"
 	"asset-pulse-api/utils/logger"
@@ -42,12 +43,18 @@ func main() {
 
 	dbRepo := dbRepo.New(db)
 
+	// Initialize AI service (using mock for now)
+	aiService := ai.NewMockAIService()
+
 	uc := usecase.New(usecase.UsecaseOptions{
-		DBRepo: dbRepo,
+		DBRepo:    dbRepo,
+		AIService: aiService,
 	})
 
 	newHandler := handler.NewHandler(handler.HandlerOptions{
-		Usecase: uc,
+		Usecase:   uc,
+		AIService: aiService,
+		JWTSecret: config.JWTSecret,
 	})
 
 	router := gin.Default()
@@ -67,4 +74,3 @@ func main() {
 		panic(err)
 	}
 }
-

@@ -62,10 +62,13 @@ type Role struct {
 
 type User struct {
 	ID             int64      `gorm:"primaryKey" json:"id"`
+	Username       *string    `gorm:"unique" json:"username"`
 	CompanyCode    *string    `json:"company_code"`
 	DepartmentCode *string    `json:"department_code"`
 	EntraID        *uuid.UUID `gorm:"unique" json:"entra_id"`
 	Email          *string    `gorm:"unique" json:"email"`
+	Password       *string    `json:"password"`
+	Salt           *string    `json:"salt"`
 	DisplayName    *string    `json:"display_name"`
 	Title          *string    `json:"title"`
 	EmployeeID     *string    `json:"employee_id"`
@@ -196,4 +199,48 @@ type LicenseAssignment struct {
 	UpdatedBy        *int64     `json:"updated_by"`
 	User             *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	App              *App       `gorm:"foreignKey:AppID" json:"app,omitempty"`
+}
+
+// Recommendation entities
+type OptimizationOpportunity struct {
+	ID               int64      `gorm:"primaryKey" json:"id"`
+	AppName          string     `gorm:"not null" json:"app_name"`
+	Department       string     `gorm:"not null" json:"department"`
+	Action           string     `gorm:"not null" json:"action"` // revoke, reallocate, downgrade
+	InactiveUsers    int        `json:"inactive_users"`
+	PendingRequests  int        `json:"pending_requests"`
+	CanReallocate    int        `json:"can_reallocate"`
+	PotentialSavings float64    `json:"potential_savings"`
+	RiskLevel        string     `json:"risk_level"`
+	Rationale        string     `json:"rationale"`
+	CompanyCode      string     `json:"company_code"`
+	CreatedAt        time.Time  `gorm:"default:now()" json:"created_at"`
+	UpdatedAt        *time.Time `json:"updated_at"`
+}
+
+type PurchaseTemplate struct {
+	ID          int64      `gorm:"primaryKey" json:"id"`
+	Name        string     `gorm:"not null" json:"name"`
+	Description *string    `json:"description"`
+	Apps        string     `gorm:"type:text" json:"apps"` // JSON array
+	Cost        float64    `json:"cost"`
+	Department  string     `json:"department"`
+	CompanyCode string     `json:"company_code"`
+	TimesUsed   int        `gorm:"default:0" json:"times_used"`
+	CreatedAt   time.Time  `gorm:"default:now()" json:"created_at"`
+	CreatedBy   *int64     `json:"created_by"`
+	UpdatedAt   *time.Time `json:"updated_at"`
+	UpdatedBy   *int64     `json:"updated_by"`
+}
+
+type SimilarApp struct {
+	ID              int64      `gorm:"primaryKey" json:"id"`
+	AppName         string     `gorm:"not null" json:"app_name"`
+	CompanyCode     string     `gorm:"not null" json:"company_code"`
+	SimilarityScore float64    `json:"similarity_score"`
+	JaccardIndex    float64    `json:"jaccard_index"`
+	LLMScore        float64    `json:"llm_score"`
+	Reasoning       string     `gorm:"type:text" json:"reasoning"`
+	CreatedAt       time.Time  `gorm:"default:now()" json:"created_at"`
+	UpdatedAt       *time.Time `json:"updated_at"`
 }

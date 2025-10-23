@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"asset-pulse-api/enums"
 	"asset-pulse-api/handler/dto"
 	"asset-pulse-api/usecase/models"
-	"asset-pulse-api/utils/apperrs"
 	"asset-pulse-api/utils/logger"
 	"asset-pulse-api/utils/transformer"
 	"fmt"
@@ -19,10 +17,10 @@ func (h *Handler) GetUsers(c *gin.Context) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			apperr := apperrs.ErrInternalServer().New().WithCause(fmt.Errorf("%v", r))
-			res := transformer.ExceptionResponse(apperr.Status, apperr)
-			logger.Error(ctx, fmt.Sprintf(enums.ErrorMsgTemplate, apperr.Status, apperr.Message, apperr.Error()))
-			c.JSON(apperr.Status, res)
+			err := fmt.Errorf("panic: %v", r)
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+			logger.Error(ctx, fmt.Sprintf("Panic occurred: %v", r))
+			c.JSON(http.StatusInternalServerError, res)
 		}
 	}()
 
@@ -52,21 +50,20 @@ func (h *Handler) GetUsers(c *gin.Context) {
 		statusPtr = &status
 	}
 
-	resp, appErr := h.useCase.GetUsers(ctx, &models.GetUsersInp{
+	resp, err := h.useCase.GetUsers(ctx, &models.GetUsersInp{
 		CompanyCode: companyCodePtr,
 		Status:      statusPtr,
 		Page:        page,
 		PageSize:    pageSize,
 	})
 
-	if appErr != nil {
-		res := transformer.ExceptionResponse(appErr.Status, appErr)
-		logger.Error(ctx, fmt.Sprintf(enums.ErrorMsgTemplate, appErr.Status, appErr.Message, appErr.Error()))
-		c.JSON(appErr.Status, res)
+	if err != nil {
+		res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+		logger.Error(ctx, fmt.Sprintf("Get users error: %v", err))
+		c.JSON(http.StatusInternalServerError, res)
 		return
 	}
 
 	output := transformer.SuccessResponse(http.StatusOK, *dto.NewGetUsersDTO(resp))
 	c.JSON(http.StatusOK, output)
 }
-

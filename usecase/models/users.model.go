@@ -16,6 +16,7 @@ type GetUsersResp struct {
 
 type UserResponse struct {
 	ID             int64      `json:"id"`
+	Username       *string    `json:"username"`
 	CompanyCode    *string    `json:"company_code"`
 	DepartmentCode *string    `json:"department_code"`
 	EntraID        *uuid.UUID `json:"entra_id"`
@@ -25,4 +26,3 @@ type UserResponse struct {
 	EmployeeID     *string    `json:"employee_id"`
 	Status         *string    `json:"status"`
 }
-

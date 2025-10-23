@@ -2,7 +2,6 @@ package transformer
 
 import (
 	"asset-pulse-api/handler/dto"
-	"asset-pulse-api/utils/apperrs"
 )
 
 func SuccessResponse(status int, data interface{}) dto.BaseResponse {
@@ -12,14 +11,10 @@ func SuccessResponse(status int, data interface{}) dto.BaseResponse {
 	}
 }
 
-func ExceptionResponse(status int, err *apperrs.AppError) dto.BaseResponse {
+func ExceptionResponse(status int, err error) dto.BaseResponse {
 	errResponse := map[string]interface{}{
-		"code":    err.Code,
-		"message": err.Message,
-	}
-
-	if err.Cause != nil {
-		errResponse["cause"] = err.Cause.Error()
+		"code":    "INTERNAL_ERROR",
+		"message": err.Error(),
 	}
 
 	return dto.BaseResponse{
@@ -33,4 +28,3 @@ type ExceptionResponseDetail struct {
 	Msg   string `json:"message"`
 	Cause string `json:"cause,omitempty"`
 }
-

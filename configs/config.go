@@ -6,6 +6,7 @@ type Config struct {
 	AppName        string `env:"APP_NAME"`
 	HttpTimeOut    int    `env:"HTTP_TIMEOUT"`
 	HttpRetryCount int    `env:"HTTP_RETRY_COUNT"`
+	JWTSecret      string `env:"JWT_SECRET"`
 	DbHost         string `env:"DB_HOST"`
 	DbPort         string `env:"DB_PORT"`
 	DbName         string `env:"DB_NAME"`
@@ -15,4 +16,3 @@ type Config struct {
 	DbSSLRootCert  string `env:"SSL_ROOT_CERT"`
 	DbTimeZone     string `env:"TIME_ZONE"`
 }
-

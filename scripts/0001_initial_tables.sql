@@ -63,6 +63,8 @@ CREATE TABLE users (
   department_code  VARCHAR(20),                      -- no FK
   entra_id         UUID UNIQUE,
   email            VARCHAR(100) UNIQUE,
+  password         VARCHAR(255),
+  salt             VARCHAR(255),
   display_name     VARCHAR(255),
   title            VARCHAR(100),
   employee_id      VARCHAR(50),
