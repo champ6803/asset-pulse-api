@@ -4,8 +4,22 @@
 -- ===========================================================
 SET search_path TO public;
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- CREATE EXTENSION IF NOT EXISTS pgcrypto;
 SELECT setseed(0.777);
+
+-- UUID fallback: ไม่พึ่ง pgcrypto/uuid-ossp
+CREATE OR REPLACE FUNCTION gen_uuid_fallback()
+RETURNS uuid
+LANGUAGE sql
+VOLATILE
+AS $$
+  SELECT md5(
+           random()::text
+        || clock_timestamp()::text
+        || coalesce(inet_server_addr()::text,'')
+        || coalesce(inet_client_addr()::text,'')
+       )::uuid;
+$$;
 
 --------------------------------------------------------------
 -- 0) CLEANUP
@@ -141,11 +155,12 @@ named2 AS (
 ),
 
 users_ins AS (
-  INSERT INTO users(company_code, department_code, entra_id, email, display_name, title, employee_id, status)
+  INSERT INTO users(company_code, department_code, username, entra_id, email, display_name, title, employee_id, status)
   SELECT
     n.company_code,
     n.department_code,
-    gen_random_uuid(),
+    lower(concat(n.fn,'.',n.ln,'.',substr(md5(n.company_code||n.department_code||n.seq::text),1,6))) AS username,
+    gen_uuid_fallback(),
     lower(
       concat(
         n.fn, '.', n.ln, '.', substr(md5(n.company_code||n.department_code||n.seq::text),1,6),
@@ -505,9 +520,9 @@ SELECT i.inv_id, i.company_code, i.app_id,
 FROM tmp_inv_ids2 i
 JOIN tmp_users_by_comp u ON u.company_code = i.company_code;
 
-INSERT INTO license_assignments(company_code, user_id, app_id, license_tier, assignment_source, assigned_at, reason)
+INSERT INTO license_assignments(company_code, user_id, app_id, license_id, license_tier, assignment_source, assigned_at, reason)
 SELECT
-  p.company_code, p.user_id, p.app_id,
+  p.company_code, p.user_id, p.app_id, p.inv_id,
   (SELECT license_tier FROM license_inventories li WHERE li.id = p.inv_id),
   CASE WHEN random()<0.25 THEN 'template' ELSE 'manual' END,
   (current_timestamp - (floor(random()*75)||' days')::interval),

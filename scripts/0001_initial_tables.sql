@@ -61,6 +61,7 @@ CREATE TABLE users (
   id               BIGSERIAL PRIMARY KEY,
   company_code     VARCHAR(20),                      -- no FK
   department_code  VARCHAR(20),                      -- no FK
+  username         VARCHAR(50) UNIQUE,
   entra_id         UUID UNIQUE,
   email            VARCHAR(100) UNIQUE,
   password         VARCHAR(255),
@@ -130,23 +131,32 @@ CREATE TABLE app_features (
 );
 CREATE INDEX ix_app_features_app ON app_features(app_id);
 
--- NOTE: ถ้าจะใช้ pgvector: CREATE EXTENSION IF NOT EXISTS vector; แล้วเปลี่ยน BYTEA -> VECTOR(1536) ตามโมเดล
+-- NOTE: ถ้าจะใช้ pgvector: CREATE EXTENSION IF NOT EXISTS vector; แล้วเปลี่ยน float8[] -> VECTOR(32) ตามโมเดล
 CREATE TABLE app_feature_embeddings (
-  id               BIGSERIAL PRIMARY KEY,
-  app_id           BIGINT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
-  embedding_vector BYTEA
+  id              BIGSERIAL PRIMARY KEY,
+  app_id          BIGINT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  feature_id      BIGINT NOT NULL REFERENCES app_features(id) ON DELETE CASCADE,
+  method          VARCHAR(50) NOT NULL DEFAULT 'mock-v1',
+  embedding_vector float8[] NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by      BIGINT DEFAULT 0
 );
+CREATE UNIQUE INDEX app_feature_embeddings_uq ON app_feature_embeddings(feature_id, method);
 
 CREATE TABLE app_similarity (
-  app_id          BIGINT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
-  similar_app_id  BIGINT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
-  score           NUMERIC NOT NULL,
-  method          VARCHAR(50),                        -- tfidf/embedding/...
-  reason_json     JSONB,
-  feature_names   TEXT,
-  description     TEXT,
-  PRIMARY KEY (app_id, similar_app_id)
+  id            BIGSERIAL PRIMARY KEY,
+  app_a_id      BIGINT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  app_b_id      BIGINT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+  method        VARCHAR(50) NOT NULL,
+  score         NUMERIC(6,4) NOT NULL,        -- 0..1
+  reason_json   JSONB,
+  description   TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by    BIGINT DEFAULT 0,
+  CONSTRAINT app_similarity_pair_chk CHECK (app_a_id < app_b_id)
 );
+CREATE UNIQUE INDEX app_similarity_uq ON app_similarity(app_a_id, app_b_id, method);
+CREATE INDEX app_similarity_score_idx ON app_similarity(method, score DESC);
 
 -- =========================
 -- 3) Vendor / Contracts etc
