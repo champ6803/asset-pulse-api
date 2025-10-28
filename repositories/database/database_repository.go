@@ -3,7 +3,9 @@ package repositories
 import (
 	"asset-pulse-api/entities"
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -41,6 +43,13 @@ type DatabaseRepository interface {
 	GetUserJobProfile(ctx context.Context, userID int64) (*entities.JobProfile, error)
 	GetActiveApps(ctx context.Context, companyCode *string) ([]entities.App, error)
 	GetAppPrices(ctx context.Context, appIDs []int64) (map[int64]float64, error)
+
+	// Grouped software license
+	GetAllSoftwareLicenses(ctx context.Context) ([]entities.SoftwareLicense, error)
+	InsertSoftwareLicense(ctx context.Context, license *entities.SoftwareLicense) error
+	DeleteSoftwareLicense(ctx context.Context, id uint) error
+	GetCurrentGroupedSoftware(ctx context.Context) ([]entities.CurrentGroupedSoftware, error)
+	UpsertCurrentGroupedSoftware(ctx context.Context, jsonData []byte) error
 }
 
 func (d *databaseRepository) GetUsers(ctx context.Context, companyCode *string, status *string, limit int, offset int) (*[]entities.User, error) {
@@ -509,6 +518,63 @@ func (d *databaseRepository) GetAppPrices(ctx context.Context, appIDs []int64) (
 	}
 
 	return priceMap, nil
+
+}
+
+func (r *databaseRepository) GetAllSoftwareLicenses(ctx context.Context) ([]entities.SoftwareLicense, error) {
+	var licenses []entities.SoftwareLicense
+	if err := r.db.WithContext(ctx).Find(&licenses).Error; err != nil {
+		return nil, err
+	}
+	return licenses, nil
+}
+
+func (r *databaseRepository) InsertSoftwareLicense(ctx context.Context, license *entities.SoftwareLicense) error {
+	license.CreatedAt = time.Now()
+	return r.db.WithContext(ctx).Create(license).Error
+}
+
+func (r *databaseRepository) DeleteSoftwareLicense(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&entities.SoftwareLicense{}, id).Error
+}
+
+func (r *databaseRepository) GetCurrentGroupedSoftware(ctx context.Context) ([]entities.CurrentGroupedSoftware, error) {
+	var output entities.RawCurrentGroupedSoftware
+	if err := r.db.WithContext(ctx).First(&output, 1).Error; err != nil {
+		return nil, err
+	}
+
+	var groups []entities.CurrentGroupedSoftware
+	if err := json.Unmarshal(output.JSONData, &groups); err != nil {
+		return nil, err
+	}
+
+	return groups, nil
+}
+
+func (r *databaseRepository) UpsertCurrentGroupedSoftware(ctx context.Context, jsonData []byte) error {
+	var groups []entities.CurrentGroupedSoftware
+	if err := json.Unmarshal(jsonData, &groups); err != nil {
+		return fmt.Errorf("invalid JSON format: %w", err)
+	}
+
+	var output entities.RawCurrentGroupedSoftware
+	err := r.db.WithContext(ctx).First(&output, 1).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			output = entities.RawCurrentGroupedSoftware{
+				ID:        1,
+				JSONData:  jsonData,
+				UpdatedAt: time.Now(),
+			}
+			return r.db.WithContext(ctx).Create(&output).Error
+		}
+		return err
+	}
+
+	output.JSONData = jsonData
+	output.UpdatedAt = time.Now()
+	return r.db.WithContext(ctx).Save(&output).Error
 }
 
 func New(db *gorm.DB) *databaseRepository {
