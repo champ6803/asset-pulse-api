@@ -35,7 +35,7 @@ type DatabaseRepository interface {
 	GetLicensesWithLimit(ctx context.Context, userID *int64, companyCode, status, search, category, licenseTier *string, limit int) ([]entities.LicenseWithInventory, int64, error)
 
 	// Request Management
-	GetPendingRequests(ctx context.Context, userID *int64, companyCode *string, limit int) ([]map[string]interface{}, int64, error)
+	GetPendingRequests(ctx context.Context, userID *int64, companyCode *string, limit int) ([]entities.PendingRequestWithDetails, int64, error)
 
 	// AI Recommendations
 	GetUserJobProfile(ctx context.Context, userID int64) (*entities.JobProfile, error)
@@ -369,12 +369,12 @@ func (d *databaseRepository) GetLicensesWithLimit(ctx context.Context, userID *i
 	return results, total, nil
 }
 
-func (d *databaseRepository) GetPendingRequests(ctx context.Context, userID *int64, companyCode *string, limit int) ([]map[string]interface{}, int64, error) {
-	var results []map[string]interface{}
+func (d *databaseRepository) GetPendingRequests(ctx context.Context, userID *int64, companyCode *string, limit int) ([]entities.PendingRequestWithDetails, int64, error) {
+	var results []entities.PendingRequestWithDetails
 	var total int64
 
 	// Build query with ticket number generation
-	query := d.db.WithContext(ctx).Table("requests r").
+	query := d.db.WithContext(ctx).Debug().Table("requests r").
 		Select(`
 			r.id,
 			CONCAT('#REQ-', EXTRACT(YEAR FROM r.created_at)::text, '-', LPAD(r.id::text, 3, '0')) AS ticket_no,
@@ -396,11 +396,17 @@ func (d *databaseRepository) GetPendingRequests(ctx context.Context, userID *int
 			rs.approver_user_id AS current_approver_user_id,
 			COALESCE(approver.username, approver.email) AS approver_username,
 			approver.display_name AS approver_name,
-			rs.sla_due_at AS step_sla_due_at
+			rs.sla_due_at AS step_sla_due_at,
+			total_steps.total_steps,
+			a.id AS app_id,
+			a.name AS app_name
 		`).
 		Joins("LEFT JOIN users u ON r.requester_user_id = u.id").
 		Joins("LEFT JOIN request_steps rs ON r.id = rs.request_id AND rs.status = 'pending'").
 		Joins("LEFT JOIN users approver ON rs.approver_user_id = approver.id").
+		Joins("LEFT JOIN (SELECT request_id, COUNT(*) as total_steps FROM request_steps GROUP BY request_id) total_steps ON r.id = total_steps.request_id").
+		Joins("LEFT JOIN purchase_template_items pti ON pti.template_id = CAST(r.payload_json->>'template_id' AS BIGINT)").
+		Joins("LEFT JOIN apps a ON pti.app_id = a.id").
 		Where("r.status = ?", "pending")
 
 	// Filter by user ID if provided

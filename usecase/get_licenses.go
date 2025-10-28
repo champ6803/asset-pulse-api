@@ -31,6 +31,7 @@ func (u *useCase) GetLicenses(ctx context.Context, in *models.GetLicensesInp) (*
 			AppName:             result.AppName,
 			AppCategory:         result.AppCategory,
 			AppStatus:           result.AppStatus,
+			AppLogoURL:          GetMockLogoURL(result.AppName),
 			LicenseTier:         result.LicenseTier,
 			AssignedAt:          result.AssignedAt,
 			RevokedAt:           result.RevokedAt,

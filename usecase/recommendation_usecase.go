@@ -305,6 +305,7 @@ func mapScoresToAppsWithDesc(ctx context.Context, dbRepo repositories.DatabaseRe
 		recommendations = append(recommendations, models.AIRecommendationItem{
 			AppID:          app.ID,
 			AppName:        app.Name,
+			AppLogoURL:     GetMockLogoURL(app.Name),
 			AppCategory:    category,
 			LicenseTier:    *app.ApplicationTier, // Default tier
 			RelevanceScore: score,

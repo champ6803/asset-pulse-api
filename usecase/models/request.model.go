@@ -18,12 +18,16 @@ type PendingRequestItem struct {
 	ScopeRefID              *int64     `json:"scope_ref_id"`
 	PayloadJSON             *string    `json:"payload_json"`
 	Status                  *string    `json:"status"`
+	ApprovalsCurrStep       *int       `json:"approvals_curr_step"`
+	ApprovalsStep           *int       `json:"approvals_step"`
 	CreatedAt               time.Time  `json:"created_at"`
 	UpdatedAt               *time.Time `json:"updated_at"`
 	RequesterUsername       *string    `json:"requester_username"`
 	RequesterEmail          *string    `json:"requester_email"`
 	RequesterFullName       *string    `json:"requester_full_name"`
 	RequesterDepartmentCode *string    `json:"requester_department_code"`
+	AppID                   *int64     `json:"app_id"`
+	AppName                 *string    `json:"app_name"`
 }
 
 type GetPendingRequestsResp struct {

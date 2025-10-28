@@ -19,6 +19,7 @@ type LicenseDTO struct {
 	LicenseInventoryID  *int64     `json:"license_inventory_id"`
 	AppID               *int64     `json:"app_id"`
 	AppName             string     `json:"app_name"`
+	AppLogoURL          *string    `json:"app_logo_url"`
 	AppCategory         *string    `json:"app_category"`
 	AppStatus           *string    `json:"app_status"`
 	LicenseTier         *string    `json:"license_tier"`
@@ -50,6 +51,7 @@ func NewGetLicensesDTO(resp *models.GetLicensesResp) *GetLicensesResponse {
 			AppName:             license.AppName,
 			AppCategory:         license.AppCategory,
 			AppStatus:           license.AppStatus,
+			AppLogoURL:          license.AppLogoURL,
 			LicenseTier:         license.LicenseTier,
 			AssignedAt:          license.AssignedAt,
 			TotalSeats:          license.TotalSeats,
@@ -84,6 +86,7 @@ func NewGetActiveLicensesDTO(resp *models.GetActiveLicensesResp) *GetActiveLicen
 			LicenseInventoryID:  license.LicenseInventoryID,
 			AppID:               license.AppID,
 			AppName:             license.AppName,
+			AppLogoURL:          license.AppLogoURL,
 			AppCategory:         license.AppCategory,
 			AppStatus:           license.AppStatus,
 			LicenseTier:         license.LicenseTier,

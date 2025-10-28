@@ -11,6 +11,7 @@ type GetAIRecommendationsInp struct {
 type AIRecommendationItem struct {
 	AppID          int64   `json:"app_id"`
 	AppName        string  `json:"app_name"`
+	AppLogoURL     *string `json:"app_logo_url"`
 	AppCategory    string  `json:"app_category"`
 	LicenseTier    string  `json:"license_tier"`
 	RelevanceScore float64 `json:"relevance_score"`

@@ -70,12 +70,17 @@ func (h *Handler) GetPendingRequests(c *gin.Context) {
 	// Transform to DTO
 	requests := make([]dto.PendingRequestDTO, 0, len(resp.Requests))
 	for _, req := range resp.Requests {
+		fmt.Println(req.ApprovalsCurrStep)
 		requests = append(requests, dto.PendingRequestDTO{
-			ID:        req.ID,
-			TicketNo:  req.TicketNo,
-			Type:      req.Type,
-			Status:    req.Status,
-			CreatedAt: req.CreatedAt,
+			ID:                req.ID,
+			TicketNo:          req.TicketNo,
+			Type:              req.Type,
+			Status:            req.Status,
+			ApprovalsCurrStep: req.ApprovalsCurrStep,
+			ApprovalsStep:     req.ApprovalsStep,
+			AppID:             req.AppID,
+			AppName:           req.AppName,
+			CreatedAt:         req.CreatedAt,
 		})
 	}
 

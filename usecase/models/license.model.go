@@ -20,6 +20,7 @@ type LicenseItem struct {
 	AppName             string     `json:"app_name"`
 	AppCategory         *string    `json:"app_category"`
 	AppStatus           *string    `json:"app_status"`
+	AppLogoURL          *string    `json:"app_logo_url"`
 	LicenseTier         *string    `json:"license_tier"`
 	AssignedAt          time.Time  `json:"assigned_at"`
 	TotalSeats          *int       `json:"total_seats"`

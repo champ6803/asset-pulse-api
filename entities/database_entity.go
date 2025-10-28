@@ -352,3 +352,38 @@ type LicenseWithInventory struct {
 	LastUsed       *time.Time `json:"last_used"`       // Last time the app was used
 	UsageFrequency *int64     `json:"usage_frequency"` // Usage frequency as percentage (0-100) based on distinct days used in last 30 days
 }
+
+// PendingRequestWithDetails represents a pending request with all related details from joins
+type PendingRequestWithDetails struct {
+	// Request fields
+	ID              int64      `json:"id"`
+	TicketNo        string     `json:"ticket_no"`
+	CompanyCode     *string    `json:"company_code"`
+	Type            string     `json:"type"`
+	RequesterUserID *int64     `json:"requester_user_id"`
+	ScopeLevel      *string    `json:"scope_level"`
+	ScopeRefID      *int64     `json:"scope_ref_id"`
+	PayloadJSON     *string    `json:"payload_json"`
+	Status          *string    `json:"status"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       *time.Time `json:"updated_at"`
+
+	// Requester details
+	RequesterUsername       *string `json:"requester_username"`
+	RequesterEmail          *string `json:"requester_email"`
+	RequesterFullName       *string `json:"requester_full_name"`
+	RequesterDepartmentCode *string `json:"requester_department_code"`
+
+	// Current step details
+	CurrentStepNo       *int64     `json:"current_step_no"`
+	CurrentApproverRole *string    `json:"current_approver_role"`
+	CurrentApproverID   *int64     `json:"current_approver_user_id"`
+	ApproverUsername    *string    `json:"approver_username"`
+	ApproverName        *string    `json:"approver_name"`
+	StepSLADueAt        *time.Time `json:"step_sla_due_at"`
+	TotalSteps          *int64     `json:"total_steps"`
+
+	// App details (from purchase_template_items join)
+	AppID   *int64  `json:"app_id"`
+	AppName *string `json:"app_name"`
+}
