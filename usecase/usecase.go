@@ -36,6 +36,16 @@ type Usecase interface {
 
 	// Purchase Templates (Feature 4)
 	CreatePurchaseTemplate(ctx context.Context, in *models.PurchaseTemplateRequest) (*models.PurchaseTemplateResponse, error)
+
+	// License Management
+	GetLicenses(ctx context.Context, in *models.GetLicensesInp) (*models.GetLicensesResp, error)
+	GetActiveLicenses(ctx context.Context, in *models.GetActiveLicensesInp) (*models.GetActiveLicensesResp, error)
+
+	// Request Management
+	GetPendingRequests(ctx context.Context, in *models.GetPendingRequestsInp) (*models.GetPendingRequestsResp, error)
+
+	// AI App Recommendations
+	GetAIRecommendations(ctx context.Context, in models.GetAIRecommendationsInp) (*models.GetAIRecommendationsResp, error)
 }
 
 type UsecaseOptions struct {

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"asset-pulse-api/services/ai"
+	"asset-pulse-api/usecase/models"
+	"asset-pulse-api/utils/ctxutil"
 	"asset-pulse-api/utils/logger"
 	"asset-pulse-api/utils/transformer"
 	"fmt"
@@ -153,5 +155,71 @@ func (h *Handler) CalculateSoftwareSimilarity(c *gin.Context) {
 	}
 
 	output := transformer.SuccessResponse(http.StatusOK, response)
+	c.JSON(http.StatusOK, output)
+}
+
+// GetAIRecommendations - Get AI-powered app recommendations for user
+// @Summary Get AI app recommendations
+// @Description Get AI-powered application recommendations based on user's job profile
+// @Tags AI Recommendations
+// @Accept json
+// @Produce json
+// @Param limit query int false "Limit number of recommendations (optional)"
+// @Success 200 {object} object
+// @Failure 400 {object} object
+// @Failure 401 {object} object
+// @Failure 500 {object} object
+// @Router /api/v1/ai/recommendations [get]
+func (h *Handler) GetAIRecommendations(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic: %v", r)
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+			logger.Error(ctx, fmt.Sprintf("Panic occurred: %v", r))
+			c.JSON(http.StatusInternalServerError, res)
+		}
+	}()
+
+	// Get user_id from context (set by auth middleware)
+	userID, err := ctxutil.GetUserID(c)
+	if err != nil {
+		res := transformer.ExceptionResponse(http.StatusUnauthorized, err)
+		logger.Error(ctx, fmt.Sprintf("Unauthorized: %v", err))
+		c.JSON(http.StatusUnauthorized, res)
+		return
+	}
+
+	// Get company_code from context (optional)
+	companyCode, _ := ctxutil.GetCompanyCode(c)
+	var companyCodePtr *string
+	if companyCode != "" {
+		companyCodePtr = &companyCode
+	}
+
+	// Get limit from query parameter (optional)
+	var limitPtr *int
+	if limitStr := c.Query("limit"); limitStr != "" {
+		var limit int
+		if _, err := fmt.Sscanf(limitStr, "%d", &limit); err == nil && limit > 0 {
+			limitPtr = &limit
+		}
+	}
+
+	// Call usecase
+	response, err := h.useCase.GetAIRecommendations(ctx, models.GetAIRecommendationsInp{
+		UserID:      userID,
+		CompanyCode: companyCodePtr,
+		Limit:       limitPtr,
+	})
+	if err != nil {
+		res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+		logger.Error(ctx, fmt.Sprintf("AI service error: %v", err))
+		c.JSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	output := transformer.SuccessResponse(http.StatusOK, response.Recommendations)
 	c.JSON(http.StatusOK, output)
 }

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"asset-pulse-api/enums"
 	"asset-pulse-api/utils/jwt"
 	"net/http"
 	"strings"
@@ -50,12 +51,12 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		}
 
 		// Set user info in context
-		c.Set("user_id", claims.UserID)
-		c.Set("username", claims.Username)
-		c.Set("email", claims.Email)
-		c.Set("company_code", claims.CompanyCode)
-		c.Set("department_code", claims.DepartmentCode)
-		c.Set("role", claims.Role)
+		c.Set(enums.ContextKeyUserID, claims.UserID)
+		c.Set(enums.ContextKeyUsername, claims.Username)
+		c.Set(enums.ContextKeyEmail, claims.Email)
+		c.Set(enums.ContextKeyCompanyCode, claims.CompanyCode)
+		c.Set(enums.ContextKeyDepartmentCode, claims.DepartmentCode)
+		c.Set(enums.ContextKeyRole, claims.Role)
 
 		c.Next()
 	}
@@ -63,7 +64,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 
 func (m *AuthMiddleware) RequireRole(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userRole, exists := c.Get("role")
+		userRole, exists := c.Get(enums.ContextKeyRole)
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "User role not found",
@@ -89,7 +90,7 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) gin.HandlerFunc {
 
 func (m *AuthMiddleware) RequireCompanyCode(allowedCompanies ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		companyCode, exists := c.Get("company_code")
+		companyCode, exists := c.Get(enums.ContextKeyCompanyCode)
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "Company code not found",

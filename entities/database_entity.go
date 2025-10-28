@@ -164,6 +164,23 @@ type Contract struct {
 	Vendor           *Vendor    `gorm:"foreignKey:VendorID" json:"vendor,omitempty"`
 }
 
+// Price Book entity
+type PriceBook struct {
+	ID        int64      `gorm:"primaryKey" json:"id"`
+	AppID     *int64     `json:"app_id"`
+	Tier      *string    `json:"tier"`
+	Unit      *string    `json:"unit"`
+	ListPrice *float64   `json:"list_price"`
+	Currency  *string    `json:"currency"`
+	ValidFrom *time.Time `json:"valid_from"`
+	ValidTo   *time.Time `json:"valid_to"`
+	CreatedAt time.Time  `gorm:"default:now()" json:"created_at"`
+	CreatedBy *int64     `json:"created_by"`
+	UpdatedAt *time.Time `json:"updated_at"`
+	UpdatedBy *int64     `json:"updated_by"`
+	App       *App       `gorm:"foreignKey:AppID" json:"app,omitempty"`
+}
+
 // License entities
 type LicenseInventory struct {
 	ID            int64      `gorm:"primaryKey" json:"id"`
@@ -243,4 +260,95 @@ type SimilarApp struct {
 	Reasoning       string     `gorm:"type:text" json:"reasoning"`
 	CreatedAt       time.Time  `gorm:"default:now()" json:"created_at"`
 	UpdatedAt       *time.Time `json:"updated_at"`
+}
+
+type Request struct {
+	ID              int64         `gorm:"primaryKey" json:"id"`
+	CompanyCode     *string       `json:"company_code"`
+	Type            string        `gorm:"not null" json:"type"` // purchase/memo/...
+	RequesterUserID *int64        `json:"requester_user_id"`
+	ScopeLevel      *string       `json:"scope_level"`
+	ScopeRefID      *int64        `json:"scope_ref_id"`
+	PayloadJSON     *string       `gorm:"type:jsonb" json:"payload_json"`
+	Status          *string       `json:"status"` // draft/pending/approved/rejected
+	CreatedAt       time.Time     `gorm:"default:now()" json:"created_at"`
+	CreatedBy       *int64        `json:"created_by"`
+	UpdatedAt       *time.Time    `json:"updated_at"`
+	UpdatedBy       *int64        `json:"updated_by"`
+	Requester       *User         `gorm:"foreignKey:RequesterUserID" json:"requester,omitempty"`
+	RequestSteps    []RequestStep `gorm:"foreignKey:RequestID" json:"request_steps,omitempty"`
+}
+
+type RequestStep struct {
+	ID             int64      `gorm:"primaryKey" json:"id"`
+	RequestID      int64      `gorm:"not null" json:"request_id"`
+	StepNo         int        `gorm:"not null" json:"step_no"`
+	ApproverRole   *string    `json:"approver_role"`
+	ApproverUserID *int64     `json:"approver_user_id"`
+	Status         *string    `json:"status"` // pending/approved/rejected
+	Comment        *string    `json:"comment"`
+	ActedAt        *time.Time `json:"acted_at"`
+	SLADueAt       *time.Time `json:"sla_due_at"`
+	CreatedAt      time.Time  `gorm:"default:now()" json:"created_at"`
+	CreatedBy      *int64     `json:"created_by"`
+	UpdatedAt      *time.Time `json:"updated_at"`
+	UpdatedBy      *int64     `json:"updated_by"`
+	Request        *Request   `gorm:"foreignKey:RequestID" json:"request,omitempty"`
+	Approver       *User      `gorm:"foreignKey:ApproverUserID" json:"approver,omitempty"`
+}
+
+// Job Profile entities
+type JobProfile struct {
+	ID           int64            `gorm:"primaryKey" json:"id"`
+	CompanyCode  *string          `json:"company_code"`
+	Code         string           `gorm:"unique;not null" json:"code"`
+	Name         string           `gorm:"not null" json:"name"`
+	Description  *string          `json:"description"`
+	CreatedAt    time.Time        `gorm:"default:now()" json:"created_at"`
+	CreatedBy    *int64           `json:"created_by"`
+	UpdatedAt    *time.Time       `json:"updated_at"`
+	UpdatedBy    *int64           `json:"updated_by"`
+	UserProfiles []UserJobProfile `gorm:"foreignKey:JobProfileID" json:"user_profiles,omitempty"`
+}
+
+type UserJobProfile struct {
+	ID           int64       `gorm:"primaryKey" json:"id"`
+	UserID       int64       `gorm:"not null" json:"user_id"`
+	JobProfileID int64       `gorm:"not null" json:"job_profile_id"`
+	AssignedAt   time.Time   `gorm:"default:now()" json:"assigned_at"`
+	CreatedAt    time.Time   `gorm:"default:now()" json:"created_at"`
+	CreatedBy    *int64      `json:"created_by"`
+	UpdatedAt    *time.Time  `json:"updated_at"`
+	UpdatedBy    *int64      `json:"updated_by"`
+	User         *User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	JobProfile   *JobProfile `gorm:"foreignKey:JobProfileID" json:"job_profile,omitempty"`
+}
+
+// LicenseWithInventory represents a license assignment with app and inventory details
+type LicenseWithInventory struct {
+	// IDs
+	LicenseAssignmentID int64  `json:"license_assignment_id"`
+	LicenseInventoryID  *int64 `json:"license_inventory_id"`
+
+	// App fields
+	AppID       int64   `json:"app_id"`
+	AppName     string  `json:"app_name"`
+	AppCategory *string `json:"app_category"`
+	AppStatus   *string `json:"app_status"`
+
+	// License assignment fields
+	LicenseTier *string    `json:"license_tier"`
+	AssignedAt  time.Time  `json:"assigned_at"`
+	RevokedAt   *time.Time `json:"revoked_at"`
+	IsRevoked   bool       `json:"is_revoked"`
+
+	// License inventory fields
+	TotalSeats    *int       `json:"total_seats"`
+	ReservedSeats *int       `json:"reserved_seats"`
+	EffectiveDate *time.Time `json:"effective_date"`
+	ExpireDate    *time.Time `json:"expire_date"`
+
+	// Usage metrics (from usage_events, not filtered by user_id)
+	LastUsed       *time.Time `json:"last_used"`       // Last time the app was used
+	UsageFrequency *int64     `json:"usage_frequency"` // Usage frequency as percentage (0-100) based on distinct days used in last 30 days
 }

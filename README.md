@@ -72,6 +72,23 @@ cp .env.example .env
 
 4. Edit `.env` with your database credentials and configuration.
 
+5. **Important**: Set up your Azure OpenAI credentials:
+   - Create an Azure OpenAI resource in the [Azure Portal](https://portal.azure.com)
+   - Deploy a GPT-4 model in your Azure OpenAI resource
+   - Get your API key from Keys and Endpoint section
+   - Add it to your `.env` file:
+     ```bash
+     AZURE_OPENAI_KEY=your-actual-api-key-here
+     AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
+     AZURE_OPENAI_MODEL=gpt-4
+     ```
+   - The application uses Azure OpenAI for AI-powered features including:
+     - Job description-based software recommendations
+     - Consolidation memo generation
+     - Software similarity analysis
+     - App recommendation scoring
+     - Short description generation
+
 ## Running the Application
 
 ### Development
@@ -121,6 +138,7 @@ curl -X GET "http://localhost:8080/api/v1/users?company_code=SCBX&status=active"
 | APP_ENV | Application environment | development |
 | APP_PORT | Server port | 8080 |
 | APP_NAME | Application name | asset-pulse-api |
+| JWT_SECRET | Secret key for JWT token generation | - |
 | DB_HOST | Database host | localhost |
 | DB_PORT | Database port | 5432 |
 | DB_NAME | Database name | asset_pulse |
@@ -128,6 +146,9 @@ curl -X GET "http://localhost:8080/api/v1/users?company_code=SCBX&status=active"
 | DB_PASSWORD | Database password | postgres |
 | SSL_MODE | Database SSL mode | disable |
 | TIME_ZONE | Application timezone | Asia/Bangkok |
+| **AZURE_OPENAI_KEY** | **Azure OpenAI API key** | **Required** |
+| **AZURE_OPENAI_ENDPOINT** | **Azure OpenAI endpoint URL** | **Required** |
+| **AZURE_OPENAI_MODEL** | **Azure OpenAI model deployment name** | **gpt-4** |
 
 ## Development
 

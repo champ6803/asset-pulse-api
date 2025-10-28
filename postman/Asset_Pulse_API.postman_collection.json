@@ -1,0 +1,848 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+		"name": "Asset Pulse API",
+		"description": "API collection for Asset Pulse - Software Asset Management Platform",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.environment.set(\"auth_token\", jsonData.data.token);",
+									"        console.log(\"Token saved to environment\");",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"nu\",\n    \"password\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login with username and password to get JWT token"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Logout and invalidate token"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"me"
+							]
+						},
+						"description": "Get current authenticated user information"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Licenses",
+			"item": [
+				{
+					"name": "Get Licenses",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/licenses?status=active&search=Slack&page=1&page_size=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"licenses"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "active",
+									"description": "Filter by status (active, revoked)"
+								},
+								{
+									"key": "search",
+									"value": "Slack",
+									"description": "Search by app name"
+								},
+								{
+									"key": "category",
+									"value": "Communication",
+									"description": "Filter by category",
+									"disabled": true
+								},
+								{
+									"key": "license_tier",
+									"value": "Pro",
+									"description": "Filter by license tier",
+									"disabled": true
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "page_size",
+									"value": "10",
+									"description": "Items per page (default: 10, max: 100)"
+								}
+							]
+						},
+						"description": "Get licenses for the authenticated user with filtering, search, and pagination capabilities."
+					},
+					"response": [
+						{
+							"name": "Success Response with Filters",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/licenses?status=active&page=1&page_size=10",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"licenses"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "active"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"msg\": \"success\",\n    \"data\": {\n        \"licenses\": [\n            {\n                \"license_assignment_id\": 101,\n                \"license_inventory_id\": 201,\n                \"app_id\": 1,\n                \"app_name\": \"Slack\",\n                \"app_category\": \"Communication\",\n                \"app_status\": \"Active\",\n                \"license_tier\": \"Pro\",\n                \"assigned_at\": \"2025-01-15T10:30:00Z\",\n                \"revoked_at\": null,\n                \"is_revoked\": false,\n                \"total_seats\": 100,\n                \"reserved_seats\": 10,\n                \"effective_date\": \"2025-01-01T00:00:00Z\",\n                \"expire_date\": \"2025-12-31T23:59:59Z\",\n                \"last_used\": \"2025-10-27T15:30:00Z\",\n                \"usage_frequency\": 87\n            },\n            {\n                \"license_assignment_id\": 102,\n                \"license_inventory_id\": 202,\n                \"app_id\": 2,\n                \"app_name\": \"Figma\",\n                \"app_category\": \"Design\",\n                \"app_status\": \"Active\",\n                \"license_tier\": \"Professional\",\n                \"assigned_at\": \"2025-02-01T14:20:00Z\",\n                \"revoked_at\": null,\n                \"is_revoked\": false,\n                \"total_seats\": 50,\n                \"reserved_seats\": 5,\n                \"effective_date\": \"2025-02-01T00:00:00Z\",\n                \"expire_date\": \"2026-01-31T23:59:59Z\",\n                \"last_used\": \"2025-10-28T09:15:00Z\",\n                \"usage_frequency\": 63\n            }\n        ],\n        \"total\": 2,\n        \"page\": 1,\n        \"page_size\": 10,\n        \"total_pages\": 1\n    }\n}"
+						},
+						{
+							"name": "Unauthorized - No Token",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/licenses",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"licenses"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"error\": \"Authorization header required\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Active Licenses",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/licenses/active",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"licenses",
+								"active"
+							]
+						},
+						"description": "Get active (non-revoked) licenses for the authenticated user. Returns the first 4 licenses (limit=4) along with the total count of all active licenses. The 'total' field shows how many active licenses the user has in total, while 'licenses' array contains only the first 4 items."
+					},
+					"response": [
+						{
+							"name": "Success - Active Licenses Only",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/licenses/active",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"licenses",
+										"active"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"msg\": \"success\",\n    \"data\": {\n        \"licenses\": [\n            {\n                \"license_assignment_id\": 101,\n                \"license_inventory_id\": 201,\n                \"app_id\": 1,\n                \"app_name\": \"Slack\",\n                \"app_category\": \"Communication\",\n                \"app_status\": \"Active\",\n                \"license_tier\": \"Pro\",\n                \"assigned_at\": \"2025-01-15T10:30:00Z\",\n                \"revoked_at\": null,\n                \"is_revoked\": false,\n                \"total_seats\": 100,\n                \"reserved_seats\": 10,\n                \"effective_date\": \"2025-01-01T00:00:00Z\",\n                \"expire_date\": \"2025-12-31T23:59:59Z\",\n                \"last_used\": \"2025-10-27T15:30:00Z\",\n                \"usage_frequency\": 87\n            },\n            {\n                \"license_assignment_id\": 102,\n                \"license_inventory_id\": 202,\n                \"app_id\": 2,\n                \"app_name\": \"Figma\",\n                \"app_category\": \"Design\",\n                \"app_status\": \"Active\",\n                \"license_tier\": \"Professional\",\n                \"assigned_at\": \"2025-02-01T14:20:00Z\",\n                \"revoked_at\": null,\n                \"is_revoked\": false,\n                \"total_seats\": 50,\n                \"reserved_seats\": 5,\n                \"effective_date\": \"2025-02-01T00:00:00Z\",\n                \"expire_date\": \"2026-01-31T23:59:59Z\",\n                \"last_used\": \"2025-10-28T09:15:00Z\",\n                \"usage_frequency\": 63\n            },\n            {\n                \"license_assignment_id\": 103,\n                \"license_inventory_id\": 203,\n                \"app_id\": 3,\n                \"app_name\": \"Microsoft 365\",\n                \"app_category\": \"Productivity\",\n                \"app_status\": \"Active\",\n                \"license_tier\": \"Business Premium\",\n                \"assigned_at\": \"2024-12-01T09:00:00Z\",\n                \"revoked_at\": null,\n                \"is_revoked\": false,\n                \"total_seats\": 500,\n                \"reserved_seats\": 50,\n                \"effective_date\": \"2024-12-01T00:00:00Z\",\n                \"expire_date\": \"2025-11-30T23:59:59Z\",\n                \"last_used\": \"2025-10-28T14:45:00Z\",\n                \"usage_frequency\": 100\n            },\n            {\n                \"license_assignment_id\": 104,\n                \"license_inventory_id\": 204,\n                \"app_id\": 4,\n                \"app_name\": \"Adobe Creative Cloud\",\n                \"app_category\": \"Design\",\n                \"app_status\": \"Active\",\n                \"license_tier\": \"All Apps\",\n                \"assigned_at\": \"2025-01-10T11:15:00Z\",\n                \"revoked_at\": null,\n                \"is_revoked\": false,\n                \"total_seats\": 25,\n                \"reserved_seats\": 2,\n                \"effective_date\": \"2025-01-01T00:00:00Z\",\n                \"expire_date\": \"2025-12-31T23:59:59Z\",\n                \"last_used\": null,\n                \"usage_frequency\": null\n            }\n        ],\n        \"total\": 12\n    }\n}"
+						},
+						{
+							"name": "Unauthorized - No Token",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/licenses/active",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"licenses",
+										"active"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"error\": \"Authorization header required\"\n}"
+						},
+						{
+							"name": "Unauthorized - Invalid Token",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer invalid_token",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/licenses/active",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"licenses",
+										"active"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"error\": \"Invalid or expired token\"\n}"
+						},
+						{
+							"name": "Success - Empty Result",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/licenses/active",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"licenses",
+										"active"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"msg\": \"success\",\n    \"data\": {\n        \"licenses\": [],\n        \"total\": 0\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Requests",
+			"item": [
+				{
+					"name": "Get Pending Requests",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/requests/pending?limit=2",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"requests",
+								"pending"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "2",
+									"description": "Number of requests to return (default: 2)"
+								}
+							]
+						},
+						"description": "Get pending requests for the authenticated user. Returns requests with auto-generated ticket numbers in format #REQ-{YEAR}-{ID}"
+					},
+					"response": [
+						{
+							"name": "Success - 2 Pending Requests",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/requests/pending?limit=2",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"requests",
+										"pending"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "2"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"msg\": \"success\",\n    \"data\": {\n        \"requests\": [\n            {\n                \"id\": 1,\n                \"ticket_no\": \"#REQ-2024-001\",\n                \"company_code\": \"SCB\",\n                \"type\": \"purchase\",\n                \"requester_user_id\": 1,\n                \"scope_level\": \"user\",\n                \"scope_ref_id\": 1,\n                \"payload_json\": \"{\\\"app_name\\\":\\\"Adobe Creative Cloud\\\",\\\"license_tier\\\":\\\"Individual\\\",\\\"quantity\\\":1}\",\n                \"status\": \"pending\",\n                \"created_at\": \"2024-03-15T10:30:00Z\",\n                \"updated_at\": \"2024-03-15T10:30:00Z\",\n                \"requester_username\": \"employee@scb.com\",\n                \"requester_email\": \"employee@scb.com\",\n                \"requester_full_name\": \"John Employee\",\n                \"requester_department_code\": \"IT\"\n            },\n            {\n                \"id\": 2,\n                \"ticket_no\": \"#REQ-2024-002\",\n                \"company_code\": \"SCB\",\n                \"type\": \"purchase\",\n                \"requester_user_id\": 1,\n                \"scope_level\": \"department\",\n                \"scope_ref_id\": 5,\n                \"payload_json\": \"{\\\"app_name\\\":\\\"Microsoft Office 365\\\",\\\"license_tier\\\":\\\"Business\\\",\\\"quantity\\\":10}\",\n                \"status\": \"pending\",\n                \"created_at\": \"2024-03-16T14:20:00Z\",\n                \"updated_at\": \"2024-03-16T14:20:00Z\",\n                \"requester_username\": \"employee@scb.com\",\n                \"requester_email\": \"employee@scb.com\",\n                \"requester_full_name\": \"John Employee\",\n                \"requester_department_code\": \"IT\"\n            }\n        ],\n        \"total\": 5\n    }\n}"
+						},
+						{
+							"name": "Unauthorized - Missing Token",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/requests/pending",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"requests",
+										"pending"
+									]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"msg\": \"error\",\n    \"error\": {\n        \"code\": \"INTERNAL_ERROR\",\n        \"message\": \"Authorization header required\"\n    }\n}"
+						},
+						{
+							"name": "Success - Empty Result",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/requests/pending?limit=2",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"requests",
+										"pending"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "2"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"msg\": \"success\",\n    \"data\": {\n        \"requests\": [],\n        \"total\": 0\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users?page=1&page_size=10&company_code=SCB&status=active",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								},
+								{
+									"key": "company_code",
+									"value": "SCB"
+								},
+								{
+									"key": "status",
+									"value": "active"
+								}
+							]
+						},
+						"description": "Get list of users with pagination and filters"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "AI & Recommendations",
+			"item": [
+				{
+					"name": "Generate JD Recommendations",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"job_title\": \"Frontend Developer\",\n    \"job_description\": \"Responsible for developing user-facing features using React and TypeScript\",\n    \"department\": \"Engineering\",\n    \"company_code\": \"SCB\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/recommendations/jd-match",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"recommendations",
+								"jd-match"
+							]
+						},
+						"description": "Generate software recommendations based on job description using AI"
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Consolidation Memo",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"app_name\": \"Microsoft 365\",\n    \"subsidiaries\": [\"SCB\", \"DATAX\", \"SCBX\"],\n    \"potential_savings\": 500000\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/consolidation/memo",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"consolidation",
+								"memo"
+							]
+						},
+						"description": "Generate consolidation memo using AI"
+					},
+					"response": []
+				},
+				{
+					"name": "Calculate Software Similarity",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"app_name\": \"Slack\",\n    \"company_code\": \"SCB\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/similarity",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"similarity"
+							]
+						},
+						"description": "Calculate similarity between software applications"
+					},
+					"response": []
+				},
+				{
+					"name": "Get AI App Recommendations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/recommendations",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"recommendations"
+							]
+						},
+						"description": "Get AI-powered application recommendations based on user's job profile. The system uses OpenAI to score and match applications relevant to the user's role."
+					},
+					"response": [
+						{
+							"name": "Success - AI Recommendations",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/api/v1/ai/recommendations",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"ai",
+										"recommendations"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"code\": 200,\n    \"data\": {\n        \"recommendations\": [\n            {\n                \"app_id\": 1,\n                \"app_name\": \"Microsoft Teams\",\n                \"app_category\": \"Collaboration\",\n                \"license_tier\": \"Pro\",\n                \"relevance_score\": 85,\n                \"cost_per_seat\": 245.50,\n                \"rationale\": \"Microsoft Teams is highly recommended for this role. Essential for Collaboration tasks with excellent feature alignment.\",\n                \"short_desc\": \"Essential team communication and collaboration platform\"\n            },\n            {\n                \"app_id\": 2,\n                \"app_name\": \"Slack\",\n                \"app_category\": \"Collaboration\",\n                \"license_tier\": \"Pro\",\n                \"relevance_score\": 80,\n                \"cost_per_seat\": 320.75,\n                \"rationale\": \"Slack is highly recommended for this role. Essential for Collaboration tasks with excellent feature alignment.\",\n                \"short_desc\": \"Essential team communication and collaboration platform\"\n            },\n            {\n                \"app_id\": 3,\n                \"app_name\": \"Jira\",\n                \"app_category\": \"Project Management\",\n                \"license_tier\": \"Pro\",\n                \"relevance_score\": 75,\n                \"cost_per_seat\": 180.00,\n                \"rationale\": \"Jira is strongly recommended. Very relevant for Project Management workflows in this position.\",\n                \"short_desc\": \"Recommended agile project tracking and team coordination\"\n            },\n            {\n                \"app_id\": 4,\n                \"app_name\": \"Figma\",\n                \"app_category\": \"Design\",\n                \"license_tier\": \"Pro\",\n                \"relevance_score\": 65,\n                \"cost_per_seat\": 450.25,\n                \"rationale\": \"Figma is strongly recommended. Very relevant for Design workflows in this position.\",\n                \"short_desc\": \"Recommended professional design and prototyping tool\"\n            }\n        ],\n        \"job_profile\": \"Software Engineer\",\n        \"confidence\": 0.76,\n        \"processing_time\": 1250000000\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/v1/health",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"health"
+					]
+				},
+				"description": "Check API health status"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

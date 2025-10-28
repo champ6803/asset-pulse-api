@@ -43,8 +43,8 @@ func main() {
 
 	dbRepo := dbRepo.New(db)
 
-	// Initialize AI service (using mock for now)
-	aiService := ai.NewMockAIService()
+	// Initialize AI service with Azure OpenAI
+	aiService := ai.NewRealAIService(config.AzureOpenAIKey, config.AzureOpenAIEndpoint, config.AzureOpenAIModel)
 
 	uc := usecase.New(usecase.UsecaseOptions{
 		DBRepo:    dbRepo,

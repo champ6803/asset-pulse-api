@@ -49,12 +49,26 @@ func New(handler *Handler) *gin.Engine {
 		protected.GET("/users", handler.GetUsers)
 		protected.GET("/me", handler.GetCurrentUser)
 
+		// License routes
+		licenses := protected.Group("/licenses")
+		{
+			licenses.GET("", handler.GetLicenses)
+			licenses.GET("/active", handler.GetActiveLicenses)
+		}
+
+		// Request routes
+		requests := protected.Group("/requests")
+		{
+			requests.GET("/pending", handler.GetPendingRequests)
+		}
+
 		// AI routes
 		ai := protected.Group("/ai")
 		{
 			ai.POST("/recommendations/jd-match", handler.GenerateJDRecommendations)
 			ai.POST("/consolidation/memo", handler.GenerateConsolidationMemo)
 			ai.POST("/similarity", handler.CalculateSoftwareSimilarity)
+			ai.GET("/recommendations", handler.GetAIRecommendations) // New endpoint
 		}
 
 		// Recommendation routes
