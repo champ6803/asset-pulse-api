@@ -32,6 +32,11 @@ type SimilarityRequest struct {
 	App2 string `json:"app2" binding:"required"`
 }
 
+type CatalogSearchRequest struct {
+	Query string `json:"query" binding:"required"`
+	TopK  int    `json:"top_k"`
+}
+
 func (h *Handler) GenerateJDRecommendations(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -148,6 +153,45 @@ func (h *Handler) CalculateSoftwareSimilarity(c *gin.Context) {
 	if err != nil {
 		res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
 		logger.Error(ctx, fmt.Sprintf("AI service error: %v", err))
+		c.JSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	output := transformer.SuccessResponse(http.StatusOK, response)
+	c.JSON(http.StatusOK, output)
+}
+
+func (h *Handler) SearchCatalog(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic: %v", r)
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+			logger.Error(ctx, fmt.Sprintf("Panic occurred: %v", r))
+			c.JSON(http.StatusInternalServerError, res)
+		}
+	}()
+
+	var req CatalogSearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		res := transformer.ExceptionResponse(http.StatusBadRequest, err)
+		logger.Error(ctx, fmt.Sprintf("Bad request: %v", err))
+		c.JSON(http.StatusBadRequest, res)
+		return
+	}
+
+	// Convert to catalog search service request
+	searchReq := &ai.CatalogSearchRequest{
+		Query: req.Query,
+		TopK:  req.TopK,
+	}
+
+	// Call catalog search service
+	response, err := h.catalogSearchService.Search(ctx, searchReq)
+	if err != nil {
+		res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+		logger.Error(ctx, fmt.Sprintf("Catalog search error: %v", err))
 		c.JSON(http.StatusInternalServerError, res)
 		return
 	}

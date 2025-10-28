@@ -36,6 +36,9 @@ type Usecase interface {
 
 	// Purchase Templates (Feature 4)
 	CreatePurchaseTemplate(ctx context.Context, in *models.PurchaseTemplateRequest) (*models.PurchaseTemplateResponse, error)
+
+	// User Licenses
+	GetUserLicenses(ctx context.Context, userID int64) (*models.GetUserLicensesResponse, error)
 }
 
 type UsecaseOptions struct {

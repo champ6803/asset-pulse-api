@@ -12,16 +12,18 @@ import (
 )
 
 type Handler struct {
-	useCase        usecase.Usecase
-	aiService      ai.AIService
-	jwtManager     *jwt.JWTManager
-	authMiddleware *middleware.AuthMiddleware
+	useCase              usecase.Usecase
+	aiService            ai.AIService
+	catalogSearchService *ai.CatalogSearchService
+	jwtManager           *jwt.JWTManager
+	authMiddleware       *middleware.AuthMiddleware
 }
 
 type HandlerOptions struct {
-	Usecase   usecase.Usecase
-	AIService ai.AIService
-	JWTSecret string
+	Usecase              usecase.Usecase
+	AIService            ai.AIService
+	CatalogSearchService *ai.CatalogSearchService
+	JWTSecret            string
 }
 
 func New(handler *Handler) *gin.Engine {
@@ -55,6 +57,7 @@ func New(handler *Handler) *gin.Engine {
 			ai.POST("/recommendations/jd-match", handler.GenerateJDRecommendations)
 			ai.POST("/consolidation/memo", handler.GenerateConsolidationMemo)
 			ai.POST("/similarity", handler.CalculateSoftwareSimilarity)
+			ai.POST("/catalog/search", handler.SearchCatalog)
 		}
 
 		// Recommendation routes
@@ -85,6 +88,7 @@ func New(handler *Handler) *gin.Engine {
 			employee.GET("/dashboard", func(c *gin.Context) {
 				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
 			})
+			employee.GET("/licenses", handler.GetUserLicenses)
 		}
 
 		manager := protected.Group("/manager")
@@ -129,9 +133,10 @@ func NewHandler(options HandlerOptions) *Handler {
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
 
 	return &Handler{
-		useCase:        options.Usecase,
-		aiService:      options.AIService,
-		jwtManager:     jwtManager,
-		authMiddleware: authMiddleware,
+		useCase:              options.Usecase,
+		aiService:            options.AIService,
+		catalogSearchService: options.CatalogSearchService,
+		jwtManager:           jwtManager,
+		authMiddleware:       authMiddleware,
 	}
 }

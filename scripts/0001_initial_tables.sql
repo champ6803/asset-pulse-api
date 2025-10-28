@@ -246,6 +246,7 @@ CREATE TABLE license_assignments (
   user_id           BIGINT REFERENCES users(id) ON UPDATE CASCADE,
   app_id            BIGINT REFERENCES apps(id) ON UPDATE CASCADE,
   license_tier      VARCHAR(50),
+  license_id        BIGINT REFERENCES license_inventories(id) ON UPDATE CASCADE,
   assignment_source VARCHAR(30),                         -- manual/template/auto
   assigned_at       TIMESTAMPTZ DEFAULT now(),
   revoked_at        TIMESTAMPTZ,

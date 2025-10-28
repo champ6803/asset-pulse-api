@@ -189,6 +189,7 @@ type LicenseAssignment struct {
 	UserID           *int64     `json:"user_id"`
 	AppID            *int64     `json:"app_id"`
 	LicenseTier      *string    `json:"license_tier"`
+	LicenseID        *int64     `json:"license_id"`
 	AssignmentSource *string    `json:"assignment_source"`
 	AssignedAt       time.Time  `gorm:"default:now()" json:"assigned_at"`
 	RevokedAt        *time.Time `json:"revoked_at"`

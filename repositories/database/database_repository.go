@@ -28,6 +28,26 @@ type DatabaseRepository interface {
 
 	// Cross-Subsidiary Match
 	GetCrossSubMatch(ctx context.Context, companyCode, appName string, threshold float64) (*[]entities.SimilarApp, error)
+
+	// User Licenses
+	GetUserLicenseAssignments(ctx context.Context, userID int64) ([]UserLicenseAssignment, error)
+}
+
+// UserLicenseAssignment represents a user's license with aggregated data from multiple tables
+type UserLicenseAssignment struct {
+	ID               int64    `json:"id"`
+	AppID            *int64   `json:"app_id"`
+	AppName          *string  `json:"app_name"`
+	AppAlias         *string  `json:"app_alias"`
+	Category         *string  `json:"category"`
+	LicenseTier      *string  `json:"license_tier"`
+	AssignedAt       string   `json:"assigned_at"`
+	ExpireDate       *string  `json:"expire_date"`
+	EffectiveDate    *string  `json:"effective_date"`
+	Cost             *float64 `json:"cost"`
+	Currency         *string  `json:"currency"`
+	UsageCount30Days int      `json:"usage_count_30d"`
+	LastUsedAt       *string  `json:"last_used_at"`
 }
 
 func (d *databaseRepository) GetUsers(ctx context.Context, companyCode *string, status *string, limit int, offset int) (*[]entities.User, error) {
@@ -176,6 +196,49 @@ func (d *databaseRepository) GetCrossSubMatch(ctx context.Context, companyCode, 
 	}
 
 	return &similarApps, nil
+}
+
+func (d *databaseRepository) GetUserLicenseAssignments(ctx context.Context, userID int64) ([]UserLicenseAssignment, error) {
+	var licenses []UserLicenseAssignment
+
+	query := `
+		SELECT 
+			la.id,
+			la.app_id,
+			la.license_tier,
+			la.assigned_at,
+			a.name as app_name,
+			a.alias as app_alias,
+			a.category,
+			li.expire_date,
+			li.effective_date,
+			pb.list_price as cost,
+			pb.currency,
+			COALESCE(
+				(SELECT COUNT(*) 
+				 FROM usage_events ue 
+				 WHERE ue.app_id = la.app_id 
+				   AND ue.user_id = la.user_id 
+				   AND ue.event_at > NOW() - INTERVAL '30 days'), 0) as usage_count_30d,
+			(SELECT MAX(event_at)::text
+			 FROM usage_events ue 
+			 WHERE ue.app_id = la.app_id 
+			   AND ue.user_id = la.user_id) as last_used_at
+		FROM license_assignments la
+		JOIN apps a ON a.id = la.app_id
+		LEFT JOIN license_inventories li ON li.id = la.license_id
+		LEFT JOIN price_books pb ON pb.app_id = la.app_id AND pb.tier = la.license_tier
+		WHERE la.user_id = $1
+		  AND la.revoked_at IS NULL
+		ORDER BY la.assigned_at DESC
+	`
+
+	result := d.db.WithContext(ctx).Raw(query, userID).Scan(&licenses)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return licenses, nil
 }
 
 func New(db *gorm.DB) *databaseRepository {
