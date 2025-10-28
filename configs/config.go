@@ -18,4 +18,8 @@ type Config struct {
 	AzureOpenAIKey      string `env:"AZURE_OPENAI_KEY"`
 	AzureOpenAIEndpoint string `env:"AZURE_OPENAI_ENDPOINT"`
 	AzureOpenAIModel    string `env:"AZURE_OPENAI_MODEL" envDefault:"gpt-4"`
+
+	// remove later
+	AzureOpenaiModelName string `env:"AZURE_OPENAI_MODEL_NAME"`
+	AzureOpenaiUrl       string `env:"AZURE_OPENAI_URL"`
 }

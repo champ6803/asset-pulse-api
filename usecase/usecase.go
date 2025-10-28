@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"asset-pulse-api/entities"
 	dbRepo "asset-pulse-api/repositories/database"
 	"asset-pulse-api/services/ai"
 	"asset-pulse-api/usecase/models"
@@ -46,6 +47,13 @@ type Usecase interface {
 
 	// AI App Recommendations
 	GetAIRecommendations(ctx context.Context, in models.GetAIRecommendationsInp) (*models.GetAIRecommendationsResp, error)
+
+	// Software license
+	GetAllLicenses(ctx context.Context) ([]entities.SoftwareLicense, error)
+	InsertLicense(ctx context.Context, license *entities.SoftwareLicense) error
+	DeleteLicense(ctx context.Context, id uint) error
+	GetGroupedSoftware(ctx context.Context) ([]entities.CurrentGroupedSoftware, error)
+	UpsertGroupedSoftware(ctx context.Context, rawJSON []byte) error
 }
 
 type UsecaseOptions struct {

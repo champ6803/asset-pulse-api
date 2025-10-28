@@ -1,6 +1,7 @@
 package mygorm
 
 import (
+	"asset-pulse-api/entities"
 	"fmt"
 
 	"gorm.io/driver/postgres"
@@ -37,6 +38,9 @@ func NewPostgres(dsn string, config *gorm.Config) *gorm.DB {
 		panic(fmt.Sprintf("Failed to connect to database: %v", err))
 	}
 
+	if err = db.AutoMigrate(&entities.SoftwareLicense{}, &entities.RawCurrentGroupedSoftware{}); err != nil {
+		fmt.Sprintf("Failed to migrate database: %v", err)
+	}
+
 	return db
 }
-

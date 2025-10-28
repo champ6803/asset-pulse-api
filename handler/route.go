@@ -2,6 +2,7 @@ package handler
 
 import (
 	"asset-pulse-api/middleware"
+	"asset-pulse-api/services"
 	"asset-pulse-api/services/ai"
 	"asset-pulse-api/usecase"
 	"asset-pulse-api/utils/jwt"
@@ -12,16 +13,18 @@ import (
 )
 
 type Handler struct {
-	useCase        usecase.Usecase
-	aiService      ai.AIService
-	jwtManager     *jwt.JWTManager
-	authMiddleware *middleware.AuthMiddleware
+	useCase                 usecase.Usecase
+	aiService               ai.AIService
+	jwtManager              *jwt.JWTManager
+	authMiddleware          *middleware.AuthMiddleware
+	softwareGroupingService *services.SoftwareGroupingService
 }
 
 type HandlerOptions struct {
-	Usecase   usecase.Usecase
-	AIService ai.AIService
-	JWTSecret string
+	Usecase                 usecase.Usecase
+	AIService               ai.AIService
+	JWTSecret               string
+	SoftwareGroupingService *services.SoftwareGroupingService
 }
 
 func New(handler *Handler) *gin.Engine {
@@ -33,6 +36,15 @@ func New(handler *Handler) *gin.Engine {
 	api.GET("/health", func(c *gin.Context) {
 		c.IndentedJSON(http.StatusOK, gin.H{"message": "OK"})
 	})
+
+	software := api.Group("/software")
+	{
+		software.GET("/licenses", handler.GetAllLicenses)
+		software.POST("/licenses", handler.InsertLicense)
+		software.DELETE("/licenses/:id", handler.DeleteLicense)
+		software.GET("/licenses/grouped", handler.GetGroupedSoftware)
+		software.POST("/licenses/grouped/generate", handler.GenerateGroupedSoftware)
+	}
 
 	// Authentication routes (public)
 	auth := api.Group("/auth")
@@ -143,9 +155,10 @@ func NewHandler(options HandlerOptions) *Handler {
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
 
 	return &Handler{
-		useCase:        options.Usecase,
-		aiService:      options.AIService,
-		jwtManager:     jwtManager,
-		authMiddleware: authMiddleware,
+		useCase:                 options.Usecase,
+		aiService:               options.AIService,
+		jwtManager:              jwtManager,
+		authMiddleware:          authMiddleware,
+		softwareGroupingService: options.SoftwareGroupingService,
 	}
 }
