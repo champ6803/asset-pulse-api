@@ -1,9 +1,10 @@
 package dto
 
 type InsertLicenseRequest struct {
+	ID                int     `json:"id,omitempty"`
 	Name              string  `json:"name" binding:"required"`
-	ThbPricePerYear   float64 `json:"thbPricePerYear"`
-	UsedByCompanyName string  `json:"usedByCompanyName" binding:"required"`
+	ThbPricePerYear   float64 `json:"thb_price_per_year"`
+	UsedByCompanyName string  `json:"used_by_company_name" binding:"required"`
 }
 
 type DeleteLicenseRequest struct {
@@ -18,12 +19,13 @@ type GroupedSoftwareResponse struct {
 	Name           string     `json:"name"`
 	Description    string     `json:"description"`
 	Items          []Software `json:"items"`
-	CommonFeatures []string   `json:"commonFeatures"`
+	CommonFeatures []string   `json:"common_features"`
 }
 
 type Software struct {
-	ID                  uint    `json:"id"`
-	Name                string  `json:"name"`
-	Image               string  `json:"image"`
-	LicensePricePerYear float64 `json:"licensePricePerYear"`
+	ID                uint    `json:"id"`
+	Name              string  `json:"name"`
+	Image             string  `json:"image"`
+	ThbPricePerYear   float64 `json:"thb_price_per_year"`
+	UsedByCompanyName string  `json:"used_by_company_name"`
 }

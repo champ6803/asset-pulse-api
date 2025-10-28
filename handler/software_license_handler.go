@@ -22,6 +22,7 @@ func (h *Handler) GetAllLicenses(c *gin.Context) {
 	var resp []dto.InsertLicenseRequest
 	for _, l := range licenses {
 		resp = append(resp, dto.InsertLicenseRequest{
+			ID:                int(l.ID),
 			Name:              l.Name,
 			ThbPricePerYear:   l.THBPricePerYear,
 			UsedByCompanyName: l.UsedByCompanyName,

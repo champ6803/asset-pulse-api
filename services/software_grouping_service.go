@@ -12,15 +12,15 @@ import (
 
 type SoftwareLicense struct {
 	Name              string  `json:"name"`
-	THBPricePerYear   float64 `json:"thbPricePerYear"`
-	UsedByCompanyName string  `json:"usedByCompanyName"`
+	THBPricePerYear   float64 `json:"thb_price_per_year"`
+	UsedByCompanyName string  `json:"used_by_company_name"`
 }
 
 type GroupedSoftwareResponse struct {
 	Name           string           `json:"name"`
 	Description    string           `json:"description"`
 	Items          []map[string]any `json:"items"`
-	CommonFeatures []string         `json:"commonFeatures"`
+	CommonFeatures []string         `json:"common_features"`
 }
 
 type SoftwareGroupingService struct {
@@ -67,66 +67,85 @@ func (s *SoftwareGroupingService) GroupSoftwareLicenses(ctx context.Context, lic
 You are an expert enterprise software analyst.
 
 You will receive a JSON array of software licenses purchased by various subsidiaries. Each license has:
-- name: string, the software name (may contain typos)
-- thbPricePerYear: number, the license price in Thai Baht per year
-- usedByCompanyName: string, the subsidiary that purchased it
+- name: string — the software name (may contain typos or variations)
+- thb_price_per_year: number — the annual license cost in Thai Baht
+- used_by_company_name: string — the subsidiary or company that purchased it
 
-Your tasks:
-1. Normalize software names (correct typos and unify variants, e.g., "Figam" -> "Figma").
-2. Group the software into logical categories (e.g., "Design Tools", "Developer Tools", "Project Management", "Business Intelligence", etc.).
-3. For each group, output a JSON object with the following structure:
+Your objectives:
+1. **Normalize software names**: Correct typos and unify naming variants (e.g., "Figam" → "Figma", "Jira SW" → "Jira Software").
+2. **Group software** into logical enterprise categories such as:
+   - Design Tools
+   - Developer Tools
+   - Project Management
+   - Business Intelligence
+   - Communication & Collaboration
+   - IT Service Management
+   - Cloud Platforms
+   - Productivity Suites
+   (Add more if appropriate based on the data.)
+3. **Preserve company usage**: If multiple subsidiaries purchased the same software, include **each usage as a separate item** within the same group, with their own "used_by_company_name" and "thb_price_per_year".
+4. **Provide accurate representative images**: Use **real, verifiable logo or product image URLs** from the public internet (e.g., company official websites, Wikipedia, or reputable sources like logos-world.net, Wikimedia, or product-cdn URLs).
 
-{
-  "name": string,              // Group name
-  "description": string,       // Description of the group
-  "items": [                   // Array of software items
-    {
-      "id": string,            // Unique ID for the software (can be sequential)
-      "name": string,          // Normalized software name
-      "image": string,         // URL to a representative image
-      "licensePricePerYear": number
-    }
-  ],
-  "commonFeatures": [string]   // List of features common to software in this group
-}
+Output Format:
+You must output a valid JSON array of group objects with this exact structure:
 
-Important rules:
-- The output **must be valid JSON only**. Do not include explanations, comments, or extra text.
-- Prefer a **top-level array of group objects**.
-- Ensure each software is included exactly once under its appropriate category.
-- Try to deduplicate software entries purchased by different subsidiaries.
-- Correct obvious typos in software names.
-- Use sequential string IDs for each software item (e.g., "1", "2", "3"...).
-- Provide reasonable group descriptions and common features based on the software in the group.
+[
+  {
+    "name": string,               // Group name
+    "description": string,        // Description of the group
+    "items": [
+      {
+        "name": string,           // Normalized software name
+        "image": string,          // Realistic valid image URL from the internet
+        "thb_price_per_year": number,
+        "used_by_company_name": string
+      }
+    ],
+    "common_features": [string]   // List of features common to this software group
+  }
+]
 
-Example of correct output format:
+Additional Rules:
+- The **output must be valid JSON only** (no comments, explanations, or markdown).
+- The **same software name** should always be normalized identically across subsidiaries.
+- Each "items" array should contain **distinct entries** for each subsidiary that uses the same software.
+- Do not fabricate image URLs — use **real images from credible online sources**.
+- Each group must have a concise but informative **description** and **at least three common features**.
+
+Example Output:
 
 [
   {
     "name": "Design Tools",
-    "description": "Software used for graphic design, prototyping, and UI/UX design.",
+    "description": "Software used for UI/UX design, prototyping, and collaboration between designers and developers.",
     "items": [
       {
-        "id": "1",
         "name": "Figma",
-        "image": "https://example.com/images/figma.png",
-        "licensePricePerYear": 4800
+        "image": "https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
+        "thb_price_per_year": 4800,
+        "used_by_company_name": "Company A"
+      },
+      {
+        "name": "Figma",
+        "image": "https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
+        "thb_price_per_year": 5100,
+        "used_by_company_name": "Company B"
       }
     ],
-    "commonFeatures": ["Collaboration", "Prototyping", "Design Systems"]
+    "common_features": ["Collaboration", "Design Systems", "Prototyping"]
   },
   {
     "name": "Project Management",
-    "description": "Tools for planning, tracking, and managing projects and tasks.",
+    "description": "Tools used to plan, track, and manage tasks across teams.",
     "items": [
       {
-        "id": "2",
         "name": "Jira Software",
-        "image": "https://example.com/images/jira.png",
-        "licensePricePerYear": 12000
+        "image": "https://upload.wikimedia.org/wikipedia/commons/8/8e/Jira_Software_logo.svg",
+        "thb_price_per_year": 12000,
+        "used_by_company_name": "Company C"
       }
     ],
-    "commonFeatures": ["Task Management", "Agile Boards", "Reporting"]
+    "common_features": ["Agile Boards", "Task Tracking", "Sprint Management"]
   }
 ]
 `

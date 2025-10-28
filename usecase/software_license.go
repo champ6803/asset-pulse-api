@@ -13,7 +13,7 @@ func (u *useCase) GetAllLicenses(ctx context.Context) ([]entities.SoftwareLicens
 
 func (u *useCase) InsertLicense(ctx context.Context, license *entities.SoftwareLicense) error {
 	if license.Name == "" || license.UsedByCompanyName == "" {
-		return errors.New("name and usedByCompanyName are required")
+		return errors.New("name and used_by_company_name are required")
 	}
 	return u.dbRepo.InsertSoftwareLicense(ctx, license)
 }
