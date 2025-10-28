@@ -32,8 +32,12 @@ func (h *Handler) GetUserLicenses(c *gin.Context) {
 		return
 	}
 
+	// Get query parameters
+	search := c.Query("search")
+	status := c.Query("status")
+
 	// Call usecase
-	resp, err := h.useCase.GetUserLicenses(ctx, userID.(int64))
+	resp, err := h.useCase.GetUserLicenses(ctx, userID.(int64), search, status)
 	if err != nil {
 		res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
 		logger.Error(ctx, fmt.Sprintf("Get user licenses error: %v", err))

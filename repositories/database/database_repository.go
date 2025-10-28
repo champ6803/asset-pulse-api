@@ -3,6 +3,7 @@ package repositories
 import (
 	"asset-pulse-api/entities"
 	"context"
+	"fmt"
 
 	"gorm.io/gorm"
 )
@@ -30,7 +31,7 @@ type DatabaseRepository interface {
 	GetCrossSubMatch(ctx context.Context, companyCode, appName string, threshold float64) (*[]entities.SimilarApp, error)
 
 	// User Licenses
-	GetUserLicenseAssignments(ctx context.Context, userID int64) ([]UserLicenseAssignment, error)
+	GetUserLicenseAssignments(ctx context.Context, userID int64, search, status string) ([]UserLicenseAssignment, error)
 }
 
 // UserLicenseAssignment represents a user's license with aggregated data from multiple tables
@@ -198,7 +199,7 @@ func (d *databaseRepository) GetCrossSubMatch(ctx context.Context, companyCode, 
 	return &similarApps, nil
 }
 
-func (d *databaseRepository) GetUserLicenseAssignments(ctx context.Context, userID int64) ([]UserLicenseAssignment, error) {
+func (d *databaseRepository) GetUserLicenseAssignments(ctx context.Context, userID int64, search, status string) ([]UserLicenseAssignment, error) {
 	var licenses []UserLicenseAssignment
 
 	query := `
@@ -230,10 +231,32 @@ func (d *databaseRepository) GetUserLicenseAssignments(ctx context.Context, user
 		LEFT JOIN price_books pb ON pb.app_id = la.app_id AND pb.tier = la.license_tier
 		WHERE la.user_id = $1
 		  AND la.revoked_at IS NULL
-		ORDER BY la.assigned_at DESC
 	`
 
-	result := d.db.WithContext(ctx).Raw(query, userID).Scan(&licenses)
+	args := []interface{}{userID}
+	argIdx := 2
+
+	// Add search filter
+	if search != "" {
+		query += fmt.Sprintf(" AND a.name ILIKE $%d", argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	// Add status filter (based on expire_date)
+	if status != "" && status != "all" {
+		if status == "active" {
+			query += " AND (li.expire_date IS NULL OR li.expire_date > NOW() + INTERVAL '30 days')"
+		} else if status == "expiring" {
+			query += " AND li.expire_date IS NOT NULL AND li.expire_date <= NOW() + INTERVAL '30 days' AND li.expire_date > NOW()"
+		} else if status == "expired" {
+			query += " AND li.expire_date IS NOT NULL AND li.expire_date <= NOW()"
+		}
+	}
+
+	query += " ORDER BY la.assigned_at DESC"
+
+	result := d.db.WithContext(ctx).Raw(query, args...).Scan(&licenses)
 	if result.Error != nil {
 		return nil, result.Error
 	}

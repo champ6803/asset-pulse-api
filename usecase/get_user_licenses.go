@@ -6,9 +6,9 @@ import (
 	"fmt"
 )
 
-func (u *useCase) GetUserLicenses(ctx context.Context, userID int64) (*models.GetUserLicensesResponse, error) {
+func (u *useCase) GetUserLicenses(ctx context.Context, userID int64, search, status string) (*models.GetUserLicensesResponse, error) {
 	// Get license assignments from repository
-	assignments, err := u.dbRepo.GetUserLicenseAssignments(ctx, userID)
+	assignments, err := u.dbRepo.GetUserLicenseAssignments(ctx, userID, search, status)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user license assignments: %w", err)
 	}
