@@ -58,9 +58,13 @@ func main() {
 		}
 	}()
 
+	// Initialize Seat Optimization service
+	seatOptimizationService := ai.NewSeatOptimizationService(config.OpenAIAPIKey, db, dbRepo)
+
 	uc := usecase.New(usecase.UsecaseOptions{
-		DBRepo:    dbRepo,
-		AIService: aiService,
+		DBRepo:              dbRepo,
+		AIService:           aiService,
+		OptimizationService: seatOptimizationService,
 	})
 
 	newHandler := handler.NewHandler(handler.HandlerOptions{

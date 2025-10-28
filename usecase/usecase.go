@@ -8,8 +8,9 @@ import (
 )
 
 type useCase struct {
-	dbRepo    dbRepo.DatabaseRepository
-	aiService ai.AIService
+	dbRepo              dbRepo.DatabaseRepository
+	aiService           ai.AIService
+	optimizationService *ai.SeatOptimizationService
 }
 
 //go:generate mockery --name=Usecase
@@ -42,13 +43,15 @@ type Usecase interface {
 }
 
 type UsecaseOptions struct {
-	DBRepo    dbRepo.DatabaseRepository
-	AIService ai.AIService
+	DBRepo              dbRepo.DatabaseRepository
+	AIService           ai.AIService
+	OptimizationService *ai.SeatOptimizationService
 }
 
 func New(options UsecaseOptions) *useCase {
 	return &useCase{
-		dbRepo:    options.DBRepo,
-		aiService: options.AIService,
+		dbRepo:              options.DBRepo,
+		aiService:           options.AIService,
+		optimizationService: options.OptimizationService,
 	}
 }

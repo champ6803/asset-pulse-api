@@ -108,9 +108,7 @@ func New(handler *Handler) *gin.Engine {
 			cto.GET("/dashboard", func(c *gin.Context) {
 				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
 			})
-			cto.GET("/optimization", func(c *gin.Context) {
-				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
-			})
+			cto.GET("/optimization", handler.GetSeatOptimization)
 		}
 
 		groupCto := protected.Group("/group-cto")

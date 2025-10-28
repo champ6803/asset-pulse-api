@@ -6,6 +6,7 @@ import (
 	"asset-pulse-api/usecase/models"
 	"asset-pulse-api/utils/apperrs"
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -95,39 +96,151 @@ func (u *useCase) CalculateSoftwareSimilarity(ctx context.Context, in *models.Si
 }
 
 func (u *useCase) GetSeatOptimization(ctx context.Context, in *models.SeatOptimizationRequest) (*models.SeatOptimizationResponse, error) {
-	// Get optimization opportunities from database
-	opportunities, err := u.dbRepo.GetSeatOptimizationOpportunities(ctx, in.CompanyCode, in.DepartmentCode, in.AppName)
+	// Set defaults
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := in.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Call AI service to analyze opportunities
+	aiReq := &ai.OptimizationAnalysisRequest{
+		CompanyCode:    in.CompanyCode,
+		DepartmentCode: in.DepartmentCode,
+		AppName:        in.AppName,
+		Limit:          limit,
+		Offset:         offset,
+	}
+
+	aiResponse, err := u.optimizationService.AnalyzeOpportunities(ctx, aiReq)
 	if err != nil {
 		return nil, apperrs.ErrInternal
 	}
 
-	// Transform to response
-	optimizations := make([]models.OptimizationOpportunity, len(*opportunities))
+	// Fetch usage analytics for additional context
+	usageAnalytics, err := u.dbRepo.GetLicenseUsageAnalytics(ctx, in.CompanyCode, in.DepartmentCode, in.AppName)
+	if err != nil {
+		return nil, apperrs.ErrInternal
+	}
+
+	// Create a map of app data for lookup
+	appDataMap := make(map[string]LicenseUsageData)
+	for _, analytic := range usageAnalytics {
+		key := fmt.Sprintf("%s-%s", analytic.AppName, analytic.DepartmentCode)
+		appDataMap[key] = LicenseUsageData{
+			AppID:          analytic.AppID,
+			AppName:        analytic.AppName,
+			AppCategory:    analytic.AppCategory,
+			DepartmentCode: analytic.DepartmentCode,
+			DepartmentName: analytic.DepartmentName,
+			TotalUsers:     analytic.TotalUsers,
+			InactiveUsers:  analytic.InactiveUsers,
+		}
+	}
+
+	// Transform AI recommendations to optimization opportunities
+	optimizations := make([]models.OptimizationOpportunity, 0, len(aiResponse.Recommendations))
 	totalSavings := 0.0
 	totalUsers := 0
+	counts := models.OptimizationCounts{}
 
-	for i, opp := range *opportunities {
-		optimizations[i] = models.OptimizationOpportunity{
-			ID:               string(rune(opp.ID)), // Convert int64 to string
-			AppName:          opp.AppName,
-			Department:       opp.Department,
-			Action:           opp.Action,
-			InactiveUsers:    opp.InactiveUsers,
-			PendingRequests:  opp.PendingRequests,
-			CanReallocate:    opp.CanReallocate,
-			PotentialSavings: opp.PotentialSavings,
-			RiskLevel:        opp.RiskLevel,
-			Rationale:        opp.Rationale,
+	for _, rec := range aiResponse.Recommendations {
+		// Get additional data from usage analytics
+		key := fmt.Sprintf("%s-%s", rec.AppName, rec.Department)
+		appData := appDataMap[key]
+
+		// If not found, try to find any match with the app name
+		if appData.AppID == 0 && appData.AppName == "" {
+			for _, ad := range usageAnalytics {
+				if ad.AppName == rec.AppName {
+					appData = LicenseUsageData{
+						AppID:          ad.AppID,
+						AppName:        ad.AppName,
+						AppCategory:    ad.AppCategory,
+						DepartmentCode: ad.DepartmentCode,
+						DepartmentName: ad.DepartmentName,
+						TotalUsers:     ad.TotalUsers,
+						InactiveUsers:  ad.InactiveUsers,
+					}
+					break
+				}
+			}
 		}
-		totalSavings += opp.PotentialSavings
-		totalUsers += opp.InactiveUsers + opp.PendingRequests
+
+		// Fallback if still not found
+		if appData.AppCategory == "" {
+			appData.AppCategory = "General"
+		}
+		if appData.AppName == "" {
+			appData.AppName = rec.AppName
+		}
+
+		opp := models.OptimizationOpportunity{
+			ID:                   fmt.Sprintf("opt-%d", len(optimizations)+1),
+			AppID:                appData.AppID,
+			AppName:              rec.AppName,
+			AppCategory:          appData.AppCategory,
+			Department:           rec.Department,
+			DepartmentCode:       appData.DepartmentCode,
+			CompanyCode:          in.CompanyCode,
+			Action:               rec.Action,
+			InactiveUsers:        appData.InactiveUsers,
+			PendingRequests:      0,
+			CanReallocate:        0,
+			PotentialSavings:     rec.PotentialSavings,
+			RiskLevel:            rec.RiskLevel,
+			Priority:             rec.Priority,
+			Rationale:            rec.Rationale,
+			AIGeneratedRationale: rec.Rationale,
+			FromDepartment:       rec.FromDepartment,
+			ToDepartment:         rec.ToDepartment,
+			DowngradeFrom:        rec.DowngradeFrom,
+			DowngradeTo:          rec.DowngradeTo,
+			LastUsedDays:         90,
+		}
+
+		// Update counts
+		counts.Total++
+		switch rec.Action {
+		case "revoke":
+			counts.Revoke++
+		case "reallocate":
+			counts.Reallocate++
+		case "downgrade":
+			counts.Downgrade++
+		}
+
+		totalSavings += rec.PotentialSavings
+		totalUsers += appData.InactiveUsers
+
+		// Apply filters
+		if in.Action != "" && rec.Action != in.Action {
+			continue
+		}
+
+		optimizations = append(optimizations, opp)
 	}
 
 	return &models.SeatOptimizationResponse{
 		Optimizations: optimizations,
 		TotalSavings:  totalSavings,
 		TotalUsers:    totalUsers,
+		Counts:        counts,
 	}, nil
+}
+
+// LicenseUsageData helper struct
+type LicenseUsageData struct {
+	AppID          int64
+	AppName        string
+	AppCategory    string
+	DepartmentCode string
+	DepartmentName string
+	TotalUsers     int
+	InactiveUsers  int
 }
 
 func (u *useCase) CreatePurchaseTemplate(ctx context.Context, in *models.PurchaseTemplateRequest) (*models.PurchaseTemplateResponse, error) {
