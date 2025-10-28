@@ -225,7 +225,7 @@ func (d *databaseRepository) GetLicenses(ctx context.Context, userID *int64, com
 			ue.usage_frequency
 		`).
 		Joins("INNER JOIN apps a ON la.app_id = a.id").
-		Joins("LEFT JOIN license_inventories li ON la.app_id = li.app_id AND la.license_tier = li.license_tier").
+		Joins("LEFT JOIN license_inventories li ON la.license_id = li.id").
 		Joins(`LEFT JOIN (
 			SELECT 
 				app_id,
