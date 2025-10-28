@@ -55,6 +55,12 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
+	// Get role from user response
+	userRole := "employee" // Default role
+	if user.Role != nil {
+		userRole = *user.Role
+	}
+
 	// Generate JWT token
 	token, err := h.jwtManager.GenerateToken(
 		user.ID,
@@ -62,7 +68,7 @@ func (h *Handler) Login(c *gin.Context) {
 		*user.Email,
 		*user.CompanyCode,
 		*user.DepartmentCode,
-		"employee", // Default role since it's not in UserResponse
+		userRole,
 	)
 
 	if err != nil {
@@ -108,6 +114,7 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 	email, _ := c.Get("email")
 	companyCode, _ := c.Get("company_code")
 	departmentCode, _ := c.Get("department_code")
+	role, _ := c.Get("role")
 
 	user := &models.UserResponse{
 		ID:             userID.(int64),
@@ -116,6 +123,7 @@ func (h *Handler) GetCurrentUser(c *gin.Context) {
 		CompanyCode:    stringPtr(companyCode.(string)),
 		DepartmentCode: stringPtr(departmentCode.(string)),
 		Status:         stringPtr("active"),
+		Role:           stringPtr(role.(string)),
 	}
 
 	output := transformer.SuccessResponse(http.StatusOK, *dto.NewUserDTO(user))

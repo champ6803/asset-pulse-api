@@ -25,4 +25,5 @@ type UserResponse struct {
 	Title          *string    `json:"title"`
 	EmployeeID     *string    `json:"employee_id"`
 	Status         *string    `json:"status"`
+	Role           *string    `json:"role"`
 }

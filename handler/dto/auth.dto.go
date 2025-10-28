@@ -39,8 +39,11 @@ func NewUserDTO(user *models.UserResponse) *UserDTO {
 		dto.Status = *user.Status
 	}
 
-	// Role field doesn't exist in UserResponse, set default
-	dto.Role = "employee"
+	if user.Role != nil {
+		dto.Role = *user.Role
+	} else {
+		dto.Role = "employee"
+	}
 
 	return dto
 }

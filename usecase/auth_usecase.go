@@ -4,7 +4,6 @@ import (
 	"asset-pulse-api/usecase/models"
 	"asset-pulse-api/utils/apperrs"
 	"context"
-	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -25,11 +24,49 @@ func (u *useCase) AuthenticateUser(ctx context.Context, in *models.AuthenticateU
 	if user.Password == nil {
 		return nil, apperrs.ErrUnauthorized
 	}
-	fmt.Println("Password_db: ", *user.Password)
-	fmt.Println("Password_input: ", in.Password)
 	err = bcrypt.CompareHashAndPassword([]byte(*user.Password), []byte(in.Password))
 	if err != nil {
 		return nil, apperrs.ErrUnauthorized
+	}
+
+	// Get user roles
+	roles, err := u.dbRepo.GetUserRoles(ctx, user.ID)
+	if err != nil {
+		return nil, apperrs.ErrUnauthorized
+	}
+
+	// Determine primary role based on hierarchy
+	var primaryRole string
+	if len(roles) > 0 {
+		// Role hierarchy: Group.CTO > Subsidiary.CTO > Finance.Manager > HR > Employee
+		for _, role := range roles {
+			switch role {
+			case "Group CTO":
+				primaryRole = "group-cto"
+				break
+			case "Subsidiary CTO":
+				if primaryRole == "" || primaryRole == "employee" {
+					primaryRole = "subsidiary-cto"
+				}
+			case "Finance Manager":
+				if primaryRole == "" || primaryRole == "employee" || primaryRole == "hr" {
+					primaryRole = "manager"
+				}
+			case "HR":
+				if primaryRole == "" || primaryRole == "employee" {
+					primaryRole = "manager"
+				}
+			case "Employee":
+				if primaryRole == "" {
+					primaryRole = "employee"
+				}
+			}
+		}
+	}
+
+	// Default to employee if no role found
+	if primaryRole == "" {
+		primaryRole = "employee"
 	}
 
 	// Transform to response
@@ -41,6 +78,7 @@ func (u *useCase) AuthenticateUser(ctx context.Context, in *models.AuthenticateU
 		CompanyCode:    user.CompanyCode,
 		DepartmentCode: user.DepartmentCode,
 		Status:         user.Status,
+		Role:           &primaryRole,
 	}
 
 	return userResponse, nil
