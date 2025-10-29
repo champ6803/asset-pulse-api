@@ -9,6 +9,8 @@ import (
 	"asset-pulse-api/usecase"
 	mygorm "asset-pulse-api/utils/gorm"
 	"asset-pulse-api/utils/logger"
+	"context"
+	"fmt"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/gin-contrib/cors"
@@ -47,9 +49,23 @@ func main() {
 	// Initialize AI service with Azure OpenAI
 	aiService := ai.NewRealAIService(config.AzureOpenAIKey, config.AzureOpenAIEndpoint, config.AzureOpenAIModel)
 
+	// Initialize Catalog Search service
+	catalogSearchService := ai.NewCatalogSearchService(config.OpenAIAPIKey, db)
+
+	// Initialize catalog in background
+	go func() {
+		if err := catalogSearchService.Initialize(context.TODO()); err != nil {
+			logger.Error(context.TODO(), fmt.Sprintf("Failed to initialize catalog: %v", err))
+		}
+	}()
+
+	// Initialize Seat Optimization service
+	seatOptimizationService := ai.NewSeatOptimizationService(config.OpenAIAPIKey, db, dbRepo)
+
 	uc := usecase.New(usecase.UsecaseOptions{
-		DBRepo:    dbRepo,
-		AIService: aiService,
+		DBRepo:              dbRepo,
+		AIService:           aiService,
+		OptimizationService: seatOptimizationService,
 	})
 
 	softwareGroupingService, svcErr := services.NewSoftwareGroupingService(config.AzureOpenaiUrl, config.AzureOpenaiModelName)
@@ -60,7 +76,9 @@ func main() {
 	newHandler := handler.NewHandler(handler.HandlerOptions{
 		Usecase:                 uc,
 		AIService:               aiService,
+		CatalogSearchService:    catalogSearchService,
 		JWTSecret:               config.JWTSecret,
+		DBRepo:                  dbRepo,
 		SoftwareGroupingService: softwareGroupingService,
 	})
 

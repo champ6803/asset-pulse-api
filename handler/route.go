@@ -2,6 +2,7 @@ package handler
 
 import (
 	"asset-pulse-api/middleware"
+	dbRepo "asset-pulse-api/repositories/database"
 	"asset-pulse-api/services"
 	"asset-pulse-api/services/ai"
 	"asset-pulse-api/usecase"
@@ -15,15 +16,19 @@ import (
 type Handler struct {
 	useCase                 usecase.Usecase
 	aiService               ai.AIService
+	catalogSearchService    *ai.CatalogSearchService
 	jwtManager              *jwt.JWTManager
 	authMiddleware          *middleware.AuthMiddleware
+	dbRepo                  dbRepo.DatabaseRepository
 	softwareGroupingService *services.SoftwareGroupingService
 }
 
 type HandlerOptions struct {
 	Usecase                 usecase.Usecase
 	AIService               ai.AIService
+	CatalogSearchService    *ai.CatalogSearchService
 	JWTSecret               string
+	DBRepo                  dbRepo.DatabaseRepository
 	SoftwareGroupingService *services.SoftwareGroupingService
 }
 
@@ -81,6 +86,7 @@ func New(handler *Handler) *gin.Engine {
 			ai.POST("/consolidation/memo", handler.GenerateConsolidationMemo)
 			ai.POST("/similarity", handler.CalculateSoftwareSimilarity)
 			ai.GET("/recommendations", handler.GetAIRecommendations) // New endpoint
+			ai.POST("/catalog/search", handler.SearchCatalog)
 		}
 
 		// Recommendation routes
@@ -111,6 +117,7 @@ func New(handler *Handler) *gin.Engine {
 			employee.GET("/dashboard", func(c *gin.Context) {
 				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
 			})
+			employee.GET("/licenses", handler.GetUserLicenses)
 		}
 
 		manager := protected.Group("/manager")
@@ -130,9 +137,7 @@ func New(handler *Handler) *gin.Engine {
 			cto.GET("/dashboard", func(c *gin.Context) {
 				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
 			})
-			cto.GET("/optimization", func(c *gin.Context) {
-				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
-			})
+			cto.GET("/optimization", handler.GetSeatOptimization)
 		}
 
 		groupCto := protected.Group("/group-cto")
@@ -141,9 +146,8 @@ func New(handler *Handler) *gin.Engine {
 			groupCto.GET("/dashboard", func(c *gin.Context) {
 				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
 			})
-			groupCto.GET("/consolidation", func(c *gin.Context) {
-				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
-			})
+			groupCto.GET("/consolidation", handler.GetConsolidationOpportunities)
+			groupCto.GET("/consolidation/:id", handler.GetConsolidationOpportunityByID)
 		}
 	}
 
@@ -157,8 +161,10 @@ func NewHandler(options HandlerOptions) *Handler {
 	return &Handler{
 		useCase:                 options.Usecase,
 		aiService:               options.AIService,
+		catalogSearchService:    options.CatalogSearchService,
 		jwtManager:              jwtManager,
 		authMiddleware:          authMiddleware,
+		dbRepo:                  options.DBRepo,
 		softwareGroupingService: options.SoftwareGroupingService,
 	}
 }

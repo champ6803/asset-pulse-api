@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -50,6 +51,61 @@ type DatabaseRepository interface {
 	DeleteSoftwareLicense(ctx context.Context, id uint) error
 	GetCurrentGroupedSoftware(ctx context.Context) ([]entities.CurrentGroupedSoftware, error)
 	UpsertCurrentGroupedSoftware(ctx context.Context, jsonData []byte) error
+	// Consolidation Opportunities
+	GetConsolidationOpportunities(ctx context.Context, companyCode string) (*[]entities.GroupConsolidationOpp, error)
+	GetConsolidationOpportunityByID(ctx context.Context, id int64) (*entities.GroupConsolidationOpp, error)
+
+	// User Licenses
+	GetUserLicenseAssignments(ctx context.Context, userID int64, search, status string) ([]UserLicenseAssignment, error)
+
+	// Seat Optimization Analytics
+	GetLicenseUsageAnalytics(ctx context.Context, companyCode, departmentCode, appName string) ([]LicenseUsageAnalytic, error)
+	GetInactiveUsers(ctx context.Context, companyCode string, appID int64, days int, limit int) ([]InactiveUserAnalytic, error)
+	GetUsersInDepartmentNeedingLicense(ctx context.Context, companyCode, departmentCode, appName string) ([]int64, error)
+}
+
+// UserLicenseAssignment represents a user's license with aggregated data from multiple tables
+type UserLicenseAssignment struct {
+	ID               int64    `json:"id"`
+	AppID            *int64   `json:"app_id"`
+	AppName          *string  `json:"app_name"`
+	AppAlias         *string  `json:"app_alias"`
+	Category         *string  `json:"category"`
+	LicenseTier      *string  `json:"license_tier"`
+	AssignedAt       string   `json:"assigned_at"`
+	ExpireDate       *string  `json:"expire_date"`
+	EffectiveDate    *string  `json:"effective_date"`
+	Cost             *float64 `json:"cost"`
+	Currency         *string  `json:"currency"`
+	UsageCount30Days int      `json:"usage_count_30d"`
+	LastUsedAt       *string  `json:"last_used_at"`
+}
+
+// LicenseUsageAnalytic represents license usage analytics data
+type LicenseUsageAnalytic struct {
+	AppID          int64    `json:"app_id"`
+	AppName        string   `json:"app_name"`
+	AppCategory    string   `json:"app_category"`
+	LicenseTier    *string  `json:"license_tier"`
+	DepartmentCode string   `json:"department_code"`
+	DepartmentName string   `json:"department_name"`
+	TotalUsers     int      `json:"total_users"`
+	InactiveUsers  int      `json:"inactive_users"`
+	AvgCostPerUser *float64 `json:"avg_cost_per_user"`
+	TotalCost      *float64 `json:"total_cost"`
+}
+
+// InactiveUserAnalytic represents inactive user data
+type InactiveUserAnalytic struct {
+	UserID         int64   `json:"user_id"`
+	DisplayName    *string `json:"display_name"`
+	DepartmentCode string  `json:"department_code"`
+	DepartmentName string  `json:"department_name"`
+	AppID          int64   `json:"app_id"`
+	AppName        string  `json:"app_name"`
+	LicenseTier    *string `json:"license_tier"`
+	LastUsedAt     string  `json:"last_used_at"`
+	DaysInactive   int     `json:"days_inactive"`
 }
 
 func (d *databaseRepository) GetUsers(ctx context.Context, companyCode *string, status *string, limit int, offset int) (*[]entities.User, error) {
@@ -283,8 +339,71 @@ func (d *databaseRepository) GetLicenses(ctx context.Context, userID *int64, com
 	if result.Error != nil {
 		return nil, result.Error
 	}
-
 	return results, nil
+}
+
+func (d *databaseRepository) GetUserLicenseAssignments(ctx context.Context, userID int64, search, status string) ([]UserLicenseAssignment, error) {
+	var licenses []UserLicenseAssignment
+
+	query := `
+		SELECT 
+			la.id,
+			la.app_id,
+			la.license_tier,
+			la.assigned_at,
+			a.name as app_name,
+			a.alias as app_alias,
+			a.category,
+			li.expire_date,
+			li.effective_date,
+			pb.list_price as cost,
+			pb.currency,
+			COALESCE(
+				(SELECT COUNT(*) 
+				 FROM usage_events ue 
+				 WHERE ue.app_id = la.app_id 
+				   AND ue.user_id = la.user_id 
+				   AND ue.event_at > NOW() - INTERVAL '30 days'), 0) as usage_count_30d,
+			(SELECT MAX(event_at)::text
+			 FROM usage_events ue 
+			 WHERE ue.app_id = la.app_id 
+			   AND ue.user_id = la.user_id) as last_used_at
+		FROM license_assignments la
+		JOIN apps a ON a.id = la.app_id
+		LEFT JOIN license_inventories li ON li.id = la.license_id
+		LEFT JOIN price_books pb ON pb.app_id = la.app_id AND pb.tier = la.license_tier
+		WHERE la.user_id = $1
+		  AND la.revoked_at IS NULL
+	`
+
+	args := []interface{}{userID}
+	argIdx := 2
+
+	// Add search filter
+	if search != "" {
+		query += fmt.Sprintf(" AND a.name ILIKE $%d", argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	// Add status filter (based on expire_date)
+	if status != "" && status != "all" {
+		if status == "active" {
+			query += " AND (li.expire_date IS NULL OR li.expire_date > NOW() + INTERVAL '30 days')"
+		} else if status == "expiring" {
+			query += " AND li.expire_date IS NOT NULL AND li.expire_date <= NOW() + INTERVAL '30 days' AND li.expire_date > NOW()"
+		} else if status == "expired" {
+			query += " AND li.expire_date IS NOT NULL AND li.expire_date <= NOW()"
+		}
+	}
+
+	query += " ORDER BY la.assigned_at DESC"
+
+	result := d.db.WithContext(ctx).Raw(query, args...).Scan(&licenses)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return licenses, nil
 }
 
 func (d *databaseRepository) GetLicensesWithLimit(ctx context.Context, userID *int64, companyCode, status, search, category, licenseTier *string, limit int) ([]entities.LicenseWithInventory, int64, error) {
@@ -581,6 +700,176 @@ func (r *databaseRepository) UpsertCurrentGroupedSoftware(ctx context.Context, j
 	output.JSONData = jsonData
 	output.UpdatedAt = time.Now()
 	return r.db.WithContext(ctx).Save(&output).Error
+}
+
+func (d *databaseRepository) GetLicenseUsageAnalytics(ctx context.Context, companyCode, departmentCode, appName string) ([]LicenseUsageAnalytic, error) {
+	var analytics []LicenseUsageAnalytic
+
+	query := `
+		SELECT 
+			a.id as app_id,
+			a.name as app_name,
+			COALESCE(a.category, 'Other') as app_category,
+			la.license_tier,
+			COALESCE(u.department_code, 'Unknown') as department_code,
+			COALESCE(d.name, 'Unknown Department') as department_name,
+			COUNT(DISTINCT la.user_id) as total_users,
+			COUNT(DISTINCT CASE WHEN ue.id IS NULL THEN la.user_id END) as inactive_users,
+			AVG(pb.list_price) as avg_cost_per_user,
+			SUM(pb.list_price) as total_cost
+		FROM license_assignments la
+		JOIN apps a ON a.id = la.app_id
+		JOIN users u ON u.id = la.user_id
+		LEFT JOIN companies c ON c.code = u.company_code
+		LEFT JOIN departments d ON d.code = u.department_code AND d.company_id = c.id
+		LEFT JOIN usage_events ue ON ue.app_id = la.app_id 
+			AND ue.user_id = la.user_id 
+			AND ue.event_at > NOW() - INTERVAL '90 days'
+		LEFT JOIN license_inventories li ON li.id = la.license_id
+		LEFT JOIN price_books pb ON pb.app_id = la.app_id AND pb.tier = la.license_tier
+		WHERE la.revoked_at IS NULL
+	`
+
+	args := []interface{}{}
+	argIdx := 1
+
+	if companyCode != "" {
+		query += fmt.Sprintf(" AND la.company_code = $%d", argIdx)
+		args = append(args, companyCode)
+		argIdx++
+	}
+
+	if departmentCode != "" {
+		query += fmt.Sprintf(" AND d.code = $%d", argIdx)
+		args = append(args, departmentCode)
+		argIdx++
+	}
+
+	if appName != "" {
+		query += fmt.Sprintf(" AND a.name ILIKE $%d", argIdx)
+		args = append(args, "%"+appName+"%")
+		argIdx++
+	}
+
+	query += " GROUP BY a.id, a.name, a.category, la.license_tier, u.department_code, d.code, d.name ORDER BY total_cost DESC"
+
+	result := d.db.WithContext(ctx).Raw(query, args...).Scan(&analytics)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return analytics, nil
+}
+
+func (d *databaseRepository) GetInactiveUsers(ctx context.Context, companyCode string, appID int64, days int, limit int) ([]InactiveUserAnalytic, error) {
+	var inactiveUsers []InactiveUserAnalytic
+
+	query := `
+		SELECT 
+			la.user_id,
+			u.display_name,
+			COALESCE(u.department_code, 'Unknown') as department_code,
+			COALESCE(d.name, 'Unknown') as department_name,
+			la.app_id,
+			a.name as app_name,
+			la.license_tier,
+			COALESCE(MAX(ue.event_at)::text, la.assigned_at::text) as last_used_at,
+			EXTRACT(DAY FROM (NOW() - COALESCE(MAX(ue.event_at), la.assigned_at)))::int as days_inactive
+		FROM license_assignments la
+		JOIN users u ON u.id = la.user_id
+		JOIN apps a ON a.id = la.app_id
+		LEFT JOIN companies c ON c.code = u.company_code
+		LEFT JOIN departments d ON d.code = u.department_code AND d.company_id = c.id
+		LEFT JOIN usage_events ue ON ue.app_id = la.app_id 
+			AND ue.user_id = la.user_id
+		WHERE la.revoked_at IS NULL
+		GROUP BY la.user_id, u.display_name, u.department_code, d.name, 
+				 la.app_id, a.name, la.license_tier, la.assigned_at
+		HAVING COALESCE(MAX(ue.event_at), la.assigned_at) < NOW() - INTERVAL '90 days'
+			AND EXTRACT(DAY FROM (NOW() - COALESCE(MAX(ue.event_at), la.assigned_at))) >= ` + fmt.Sprintf("%d", days) + `
+		ORDER BY days_inactive DESC
+	`
+
+	args := []interface{}{}
+	argIdx := 1
+
+	// Add company filter
+	if companyCode != "" {
+		query = strings.Replace(query, "WHERE la.revoked_at IS NULL", fmt.Sprintf("WHERE la.revoked_at IS NULL AND la.company_code = $%d", argIdx), 1)
+		args = append(args, companyCode)
+		argIdx++
+	}
+
+	// Days is now hardcoded in HAVING clause, no need to add to args
+	// Add limit
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argIdx)
+		args = append(args, limit)
+		argIdx++
+	}
+
+	result := d.db.WithContext(ctx).Raw(query, args...).Scan(&inactiveUsers)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return inactiveUsers, nil
+}
+
+func (d *databaseRepository) GetUsersInDepartmentNeedingLicense(ctx context.Context, companyCode, departmentCode, appName string) ([]int64, error) {
+	var userIDs []int64
+
+	query := `
+		SELECT DISTINCT u.id
+		FROM users u
+		JOIN companies c ON c.code = u.company_code
+		JOIN departments d ON d.code = u.department_code AND d.company_id = c.id
+		JOIN apps a ON a.name = $3
+		WHERE u.company_code = $1 
+		  AND d.code = $2
+		  AND u.id NOT IN (
+			SELECT la.user_id
+			FROM license_assignments la
+			WHERE la.app_id = a.id 
+			  AND la.revoked_at IS NULL
+		  )
+		  AND u.status = 'active'
+		LIMIT 100
+	`
+
+	result := d.db.WithContext(ctx).Raw(query, companyCode, departmentCode, appName).Scan(&userIDs)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return userIDs, nil
+}
+
+func (d *databaseRepository) GetConsolidationOpportunities(ctx context.Context, companyCode string) (*[]entities.GroupConsolidationOpp, error) {
+	opportunities := []entities.GroupConsolidationOpp{}
+	query := d.db.WithContext(ctx).Preload("App")
+
+	if companyCode != "" {
+		query = query.Where("company_code = ? OR company_code IS NULL", companyCode)
+	}
+
+	result := query.Order("potential_saving_amt DESC").Find(&opportunities)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &opportunities, nil
+}
+
+func (d *databaseRepository) GetConsolidationOpportunityByID(ctx context.Context, id int64) (*entities.GroupConsolidationOpp, error) {
+	opportunity := &entities.GroupConsolidationOpp{}
+
+	result := d.db.WithContext(ctx).Preload("App").First(opportunity, id)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return opportunity, nil
 }
 
 func New(db *gorm.DB) *databaseRepository {

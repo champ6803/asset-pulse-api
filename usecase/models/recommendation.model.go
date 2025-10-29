@@ -58,26 +58,48 @@ type SeatOptimizationRequest struct {
 	CompanyCode    string `json:"company_code"`
 	DepartmentCode string `json:"department_code"`
 	AppName        string `json:"app_name"`
-	Action         string `json:"action"` // revoke, reallocate, downgrade
+	Action         string `json:"action"`  // revoke, reallocate, downgrade
+	SortBy         string `json:"sort_by"` // priority, savings, date
+	Limit          int    `json:"limit"`
+	Offset         int    `json:"offset"`
 }
 
 type SeatOptimizationResponse struct {
 	Optimizations []OptimizationOpportunity `json:"optimizations"`
 	TotalSavings  float64                   `json:"total_savings"`
 	TotalUsers    int                       `json:"total_users"`
+	Counts        OptimizationCounts        `json:"counts"`
+}
+
+type OptimizationCounts struct {
+	Total      int `json:"total"`
+	Revoke     int `json:"revoke"`
+	Reallocate int `json:"reallocate"`
+	Downgrade  int `json:"downgrade"`
 }
 
 type OptimizationOpportunity struct {
-	ID               string  `json:"id"`
-	AppName          string  `json:"app_name"`
-	Department       string  `json:"department"`
-	Action           string  `json:"action"`
-	InactiveUsers    int     `json:"inactive_users"`
-	PendingRequests  int     `json:"pending_requests"`
-	CanReallocate    int     `json:"can_reallocate"`
-	PotentialSavings float64 `json:"potential_savings"`
-	RiskLevel        string  `json:"risk_level"`
-	Rationale        string  `json:"rationale"`
+	ID                   string  `json:"id"`
+	AppID                int64   `json:"app_id"`
+	AppName              string  `json:"app_name"`
+	AppCategory          string  `json:"app_category"`
+	Department           string  `json:"department"`
+	DepartmentCode       string  `json:"department_code"`
+	CompanyCode          string  `json:"company_code"`
+	Action               string  `json:"action"`
+	InactiveUsers        int     `json:"inactive_users"`
+	PendingRequests      int     `json:"pending_requests"`
+	CanReallocate        int     `json:"can_reallocate"`
+	PotentialSavings     float64 `json:"potential_savings"`
+	RiskLevel            string  `json:"risk_level"`
+	Priority             int     `json:"priority"`
+	Rationale            string  `json:"rationale"`
+	AIGeneratedRationale string  `json:"ai_generated_rationale"`
+	FromDepartment       string  `json:"from_department"`
+	ToDepartment         string  `json:"to_department"`
+	DowngradeFrom        string  `json:"downgrade_from"`
+	DowngradeTo          string  `json:"downgrade_to"`
+	LastUsedDays         int     `json:"last_used_days"`
 }
 
 type PurchaseTemplateRequest struct {

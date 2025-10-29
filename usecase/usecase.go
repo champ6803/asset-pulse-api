@@ -9,8 +9,9 @@ import (
 )
 
 type useCase struct {
-	dbRepo    dbRepo.DatabaseRepository
-	aiService ai.AIService
+	dbRepo              dbRepo.DatabaseRepository
+	aiService           ai.AIService
+	optimizationService *ai.SeatOptimizationService
 }
 
 //go:generate mockery --name=Usecase
@@ -54,16 +55,20 @@ type Usecase interface {
 	DeleteLicense(ctx context.Context, id uint) error
 	GetGroupedSoftware(ctx context.Context) ([]entities.CurrentGroupedSoftware, error)
 	UpsertGroupedSoftware(ctx context.Context, rawJSON []byte) error
+	// User Licenses
+	GetUserLicenses(ctx context.Context, userID int64, search, status string) (*models.GetUserLicensesResponse, error)
 }
 
 type UsecaseOptions struct {
-	DBRepo    dbRepo.DatabaseRepository
-	AIService ai.AIService
+	DBRepo              dbRepo.DatabaseRepository
+	AIService           ai.AIService
+	OptimizationService *ai.SeatOptimizationService
 }
 
 func New(options UsecaseOptions) *useCase {
 	return &useCase{
-		dbRepo:    options.DBRepo,
-		aiService: options.AIService,
+		dbRepo:              options.DBRepo,
+		aiService:           options.AIService,
+		optimizationService: options.OptimizationService,
 	}
 }

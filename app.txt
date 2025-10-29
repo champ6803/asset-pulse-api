@@ -1,0 +1,302 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import faiss
+import json
+from openai import OpenAI
+
+# ---------- SETTINGS ----------
+EMBED_MODEL = "text-embedding-3-large"   # or "text-embedding-3-small"
+TOP_K = 5
+
+# ---------- INITIALIZE ----------
+client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", None))
+
+# ---------- Normalize Product Descriptions ----------
+def normalize_description(text):
+    """Use an LLM to summarize or standardize product info into functional terms."""
+    prompt = f"""
+    Extract, normalize and summarize the following software product or license string into json text of
+    1. vendor - precise vendor name
+    2. product_name - concise, normalized commercial product name
+    3. functionalities - return concise, functionality list of the software. try to not mention vendor-specific wording or specific vendor tool, while ok to return wording of industry-standard protocols.
+    
+    
+    Example: 
+      Input: 'Figma Organization license for PointX project 2025 3 seats purchaseID AA22343'
+      Output: '{{ "vendor": "Figma", 
+               "product_name": "Figma Design", 
+               "functionalities": "1. Design & Layout
+
+1.1. Vector drawing and editing (shapes, paths, text, fills, strokes)
+1.2. Frames, artboards, and multi-page canvases for organizing screens
+1.3. Auto-layout and responsive constraints for adaptive design
+1.4. Shared styles and design tokens (color, typography, spacing)
+1.5. Component libraries and design systems with reusable elements and variants
+
+2. Prototyping & Interactivity
+
+2.1. Interactive prototypes linking screens with transitions and gestures
+2.2. Animation and micro-interaction support
+2.3. Asset export to multiple formats and resolutions
+
+3. Collaboration & Developer Handoff
+
+3.1. Real-time multi-user editing with commenting and feedback
+3.2. Developer handoff tools to inspect properties, export assets, and view code specs
+3.3. Version history, branching, and merging for controlled iteration
+
+4. Platform, Extensions & Integrations
+
+4.1. Cloud-based and desktop access
+4.2. Plugin and extension ecosystem for added functionality
+4.3. Integrations with third-party tools (issue tracking, version control, design ops)
+4.4. API and connectors for workflow automation and data exchange
+
+5. Enterprise & Governance
+5.1. Workspace, role, and permission management
+5.2. Security features such as SSO, access control, and link sharing settings
+5.3. Analytics and reporting on design system usage and collaboration"    }}'
+
+    Input: {text}
+    Output:
+    """
+    response = client.responses.create(
+        model="gpt-4.1-mini", 
+        input=prompt,
+        temperature=0.3
+    )
+    normalized_result = response.output_text.strip()
+
+    normalized_data = {} # This will hold our final dict
+        
+    # 1b. Check the type of the result
+    if isinstance(normalized_result, dict):
+        # It's already a dictionary, great!
+        normalized_data = normalized_result
+    elif isinstance(normalized_result, str):
+        # It's a string, so we assume it's JSON and try to parse it
+        try:
+            normalized_data = json.loads(normalized_result)
+        except json.JSONDecodeError:
+            print(f"Error: Could not parse JSON string for: '{prompt}'")
+            normalized_data = {
+                "vendor": "Parse Error", 
+                "product_name": prompt, 
+                "functionalities": "JSON Decode Error"
+            }
+    else:
+        # It's some other unexpected type
+        print(f"Error: Unexpected data type from normalize_description for: '{prompt}'")
+        normalized_data = {
+            "vendor": "Type Error", 
+            "product_name": prompt, 
+            "functionalities": "Unexpected Data Type"
+        }
+    print(normalized_data)
+    return normalized_data 
+
+def cut_text_to_two_lines(text: str) -> str:
+    """
+    Truncates a multi-line string to a maximum of two lines.
+
+    An ellipsis (...) is appended if the original text contained more than
+    two lines, indicating that content was cut.
+
+    Args:
+        text: The input string, potentially containing multiple lines.
+
+    Returns:
+        The truncated string, with a maximum of two lines and an optional ellipsis.
+    """
+    
+    # 1. Split the text into lines
+    lines = text.split('\n')
+    
+    # 2. Check if the text is longer than 2 lines
+    if len(lines) > 4:
+        # a. Take only the first two lines
+        truncated_lines = lines[:4]
+        
+        # b. Join the lines and append the ellipsis
+        return '\n'.join(truncated_lines) + '...'
+    
+    # 3. If the text is 2 lines or less, return it unchanged
+    return text
+
+@st.cache_resource
+def load_catalog():
+    """
+    Loads a hardcoded list of product names, normalizes each one
+    into a JSON (dict), and returns them as a NumPy array.
+    """
+    # 1. Initial hardcoded array (list)
+    initial_products = [
+        "Microsoft 365 E3", 
+        "Jira Software Cloud", 
+        "Confluence Cloud", 
+        "ServiceNow", 
+        "Salesforce Sales Cloud",
+        "Archer GRC",
+        "Microsoft Sentinel",
+        "Tableau",
+        "SAP S/4HANA Cloud",
+        "DocuSign",
+        "Workday",
+        "Adobe Creative Cloud",
+        "Zoom",
+        "Bloomberg Professional Service",
+        "Copilot 365",
+        "Augment Code",
+        "Synthesia"
+    ]
+
+    # This list will hold a dictionary for each row in the future DataFrame
+    processed_list = []
+    
+    print("--- Starting Processing ---")
+    
+    # Iterate through each item in the input list
+    for description in initial_products:
+        
+        # 1. Pass the element to your normalization function
+        # The result might be a dict (good) or a JSON string (needs parsing)
+        normalized_result = normalize_description(description)
+        
+        
+        # 2. Create a new dictionary that includes the original input
+        #    This will create the 4 columns you wanted.
+        #    The **normalized_data unpacks the dictionary from your function.
+        row_data = {
+            "input_description": description,
+            **normalized_result
+        }
+        
+        # 3. Add this complete row dictionary to our list
+        processed_list.append(row_data)
+        
+    print("--- Processing Complete ---")
+    
+    # 4. Convert the list of dictionaries into a DataFrame.
+    # This is the most efficient way to build a DataFrame from a loop.
+    df = pd.DataFrame(processed_list)
+    
+    # Optional: Re-order columns to ensure the input is first
+    # This is good practice if you aren't sure of the dictionary order.
+    df = df[['vendor', 'product_name', 'functionalities','input_description']]
+    
+    return df
+    
+    # # Create a standard Python list to hold the JSON objects.
+    # # This is more efficient than repeatedly appending to a NumPy array.
+    # catalog_list = []
+
+    # # 2. For each item, call normalize_description and add to the list
+    # for item in initial_products:
+    #     normalized_json = normalize_description(item)
+    #     catalog_list.append(normalized_json)
+
+    # # 3. Add that json to numpy array saas_catalog
+    # # Convert the complete list of dictionaries into a NumPy array
+    # saas_catalog = pd.DataFrame(input = initial_products, )
+    
+    # return catalog_list
+
+catalog = load_catalog()
+
+# ---------- EMBEDDINGS ----------
+@st.cache_resource
+def embed_texts(texts):
+    """Create embeddings for a list of texts."""
+    res = client.embeddings.create(model=EMBED_MODEL, input=texts)
+    return [np.array(d.embedding, dtype="float32") for d in res.data]
+
+# @st.cache_resource
+# def build_index(df):
+#     """Embed catalog and build FAISS index."""
+#     # embeddings = embed_texts((df["vendor"] + " " + df["product_name"] + " " + df["functionalities"]).tolist())
+#     embeddings = embed_texts(df["functionalities"].tolist())
+#     dim = len(embeddings[0])
+#     index = faiss.IndexFlatIP(dim)
+#     mat = np.vstack(embeddings)
+#     faiss.normalize_L2(mat)
+#     index.add(mat)
+#     df["embedding"] = embeddings
+#     return index, df
+
+# index, catalog = build_index(catalog)
+
+@st.cache_resource
+def get_embeddings(df):
+    """
+    Create embeddings for the catalog.
+    This function is cached.
+    """
+    print("--- Running get_embeddings() ---")
+    # Combine the three columns as discussed
+    texts_to_embed = (df["vendor"] + " " + df["product_name"] + " " + df["functionalities"]).tolist()
+    return embed_texts(texts_to_embed)
+
+@st.cache_resource
+def build_faiss_index(embeddings):
+    """
+    Builds the FAISS index from a list of embeddings.
+    This function is cached.
+    """
+    print("--- Running build_faiss_index() ---")
+    dim = len(embeddings[0])
+    index = faiss.IndexFlatIP(dim)
+    mat = np.vstack(embeddings)
+    faiss.normalize_L2(mat)
+    index.add(mat)
+    return index
+
+# --- Main script logic to build index ---
+# 1. Get the cached embeddings
+catalog_embeddings = get_embeddings(catalog)
+# 2. Get the cached index
+index = build_faiss_index(catalog_embeddings)
+
+# ---------- SEARCH ----------
+def search_catalog(query, top_k=TOP_K):
+    q_emb = embed_texts([query])[0].astype("float32").reshape(1, -1)
+    faiss.normalize_L2(q_emb)
+    D, I = index.search(q_emb, top_k)
+    results_list = []
+    for dist, idx in zip(D[0], I[0]):
+        row = catalog.iloc[idx]
+        results_list.append({
+            "product_name": row.product_name,
+            "vendor": row.vendor,
+            "functionalities": row.functionalities,
+            "input_description": row.input_description,
+            "similarity": round(float(dist) * 100, 2)
+        })
+    results = pd.DataFrame(results_list)
+
+    return results
+
+# ---------- STREAMLIT UI ----------
+st.set_page_config(page_title="SaaS Portfolio Search", page_icon="🔍", layout="centered")
+st.title("🔍 SaaS Portfolio Semantic Search")
+st.caption("Type any SaaS name, SKU, or invoice line — get top-matching catalog products.")
+
+#st.markdown("Sample Catalog model Output")
+#st.dataframe(catalog, use_container_width=True)
+
+query = st.text_area("Enter SaaS text:", placeholder="Figma")
+
+if st.button("Search") and query.strip():
+    with st.spinner("Embedding and searching..."):
+        input_description = query.strip()
+        processed_input = normalize_description(input_description)
+        results = search_catalog(processed_input['functionalities'], top_k=TOP_K)
+    st.success(f"Top {TOP_K} matches:")
+    st.caption(cut_text_to_two_lines(f"Results: {processed_input['functionalities']}"))
+    st.dataframe(results[['product_name','vendor','similarity','functionalities']], use_container_width=True)
+else:
+    st.info("Enter text above and press **Search**.")
+
+
+st.markdown("---")
+st.caption("Powered by OpenAI embeddings + FAISS • Example catalog only")
