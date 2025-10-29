@@ -47,7 +47,7 @@ func main() {
 	dbRepo := dbRepo.New(db)
 
 	// Initialize AI service with Azure OpenAI
-	aiService := ai.NewRealAIService(config.AzureOpenAIKey, config.AzureOpenAIEndpoint, config.AzureOpenAIModel)
+	aiService := ai.NewRealAIService(config.OpenAIAPIKey)
 
 	// Initialize Catalog Search service
 	catalogSearchService := ai.NewCatalogSearchService(config.OpenAIAPIKey, db)

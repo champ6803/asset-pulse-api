@@ -239,16 +239,11 @@ type RealAIService struct {
 	model  string
 }
 
-func NewRealAIService(apiKey string, endpoint string, model string) *RealAIService {
-	config := openai.DefaultAzureConfig(apiKey, endpoint)
-	client := openai.NewClientWithConfig(config)
+func NewRealAIService(apiKey string) *RealAIService {
+	client := openai.NewClientWithConfig(openai.DefaultConfig(apiKey))
 
-	if model == "" {
-		model = "gpt-4" // default model
-	}
 	return &RealAIService{
 		client: client,
-		model:  model,
 	}
 }
 
