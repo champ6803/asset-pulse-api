@@ -62,6 +62,19 @@ func New(handler *Handler) *gin.Engine {
 	protected := api.Group("/")
 	protected.Use(handler.authMiddleware.RequireAuth())
 	{
+		// Similar Software routes
+		similar := protected.Group("/similar-software")
+		{
+			similar.GET("/clusters", handler.GetSimilarSoftwareClusters)
+			similar.POST("/saving-simulation", handler.SavingSimulation)
+		}
+
+		// Vendor pricing
+		vendors := protected.Group("/vendors")
+		{
+			vendors.GET("/pricing-tiers", handler.GetVendorPricingTiers)
+		}
+
 		// User routes
 		protected.GET("/users", handler.GetUsers)
 		protected.GET("/me", handler.GetCurrentUser)
