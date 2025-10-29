@@ -4,6 +4,7 @@ import (
 	"asset-pulse-api/entities"
 	"context"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -30,12 +31,17 @@ type DatabaseRepository interface {
 	// Cross-Subsidiary Match
 	GetCrossSubMatch(ctx context.Context, companyCode, appName string, threshold float64) (*[]entities.SimilarApp, error)
 
+	// Consolidation Opportunities
+	GetConsolidationOpportunities(ctx context.Context, companyCode string) (*[]entities.GroupConsolidationOpp, error)
+	GetConsolidationOpportunityByID(ctx context.Context, id int64) (*entities.GroupConsolidationOpp, error)
+
 	// User Licenses
 	GetUserLicenseAssignments(ctx context.Context, userID int64, search, status string) ([]UserLicenseAssignment, error)
 
 	// Seat Optimization Analytics
 	GetLicenseUsageAnalytics(ctx context.Context, companyCode, departmentCode, appName string) ([]LicenseUsageAnalytic, error)
-	GetInactiveUsers(ctx context.Context, appID int64, days int) ([]InactiveUserAnalytic, error)
+	GetInactiveUsers(ctx context.Context, companyCode string, appID int64, days int, limit int) ([]InactiveUserAnalytic, error)
+	GetUsersInDepartmentNeedingLicense(ctx context.Context, companyCode, departmentCode, appName string) ([]int64, error)
 }
 
 // UserLicenseAssignment represents a user's license with aggregated data from multiple tables
@@ -304,8 +310,8 @@ func (d *databaseRepository) GetLicenseUsageAnalytics(ctx context.Context, compa
 			a.name as app_name,
 			COALESCE(a.category, 'Other') as app_category,
 			la.license_tier,
-			d.code as department_code,
-			d.name as department_name,
+			COALESCE(u.department_code, 'Unknown') as department_code,
+			COALESCE(d.name, 'Unknown Department') as department_name,
 			COUNT(DISTINCT la.user_id) as total_users,
 			COUNT(DISTINCT CASE WHEN ue.id IS NULL THEN la.user_id END) as inactive_users,
 			AVG(pb.list_price) as avg_cost_per_user,
@@ -313,7 +319,8 @@ func (d *databaseRepository) GetLicenseUsageAnalytics(ctx context.Context, compa
 		FROM license_assignments la
 		JOIN apps a ON a.id = la.app_id
 		JOIN users u ON u.id = la.user_id
-		JOIN departments d ON d.code = u.department_code
+		LEFT JOIN companies c ON c.code = u.company_code
+		LEFT JOIN departments d ON d.code = u.department_code AND d.company_id = c.id
 		LEFT JOIN usage_events ue ON ue.app_id = la.app_id 
 			AND ue.user_id = la.user_id 
 			AND ue.event_at > NOW() - INTERVAL '90 days'
@@ -343,7 +350,7 @@ func (d *databaseRepository) GetLicenseUsageAnalytics(ctx context.Context, compa
 		argIdx++
 	}
 
-	query += " GROUP BY a.id, a.name, a.category, la.license_tier, d.code, d.name ORDER BY total_cost DESC"
+	query += " GROUP BY a.id, a.name, a.category, la.license_tier, u.department_code, d.code, d.name ORDER BY total_cost DESC"
 
 	result := d.db.WithContext(ctx).Raw(query, args...).Scan(&analytics)
 	if result.Error != nil {
@@ -353,7 +360,7 @@ func (d *databaseRepository) GetLicenseUsageAnalytics(ctx context.Context, compa
 	return analytics, nil
 }
 
-func (d *databaseRepository) GetInactiveUsers(ctx context.Context, appID int64, days int) ([]InactiveUserAnalytic, error) {
+func (d *databaseRepository) GetInactiveUsers(ctx context.Context, companyCode string, appID int64, days int, limit int) ([]InactiveUserAnalytic, error) {
 	var inactiveUsers []InactiveUserAnalytic
 
 	query := `
@@ -369,25 +376,99 @@ func (d *databaseRepository) GetInactiveUsers(ctx context.Context, appID int64, 
 			EXTRACT(DAY FROM (NOW() - COALESCE(MAX(ue.event_at), la.assigned_at)))::int as days_inactive
 		FROM license_assignments la
 		JOIN users u ON u.id = la.user_id
-		LEFT JOIN departments d ON d.code = u.department_code
 		JOIN apps a ON a.id = la.app_id
+		LEFT JOIN companies c ON c.code = u.company_code
+		LEFT JOIN departments d ON d.code = u.department_code AND d.company_id = c.id
 		LEFT JOIN usage_events ue ON ue.app_id = la.app_id 
 			AND ue.user_id = la.user_id
 		WHERE la.revoked_at IS NULL
-			AND ($1 = 0 OR la.app_id = $1)
 		GROUP BY la.user_id, u.display_name, u.department_code, d.name, 
 				 la.app_id, a.name, la.license_tier, la.assigned_at
 		HAVING COALESCE(MAX(ue.event_at), la.assigned_at) < NOW() - INTERVAL '90 days'
-			AND EXTRACT(DAY FROM (NOW() - COALESCE(MAX(ue.event_at), la.assigned_at))) >= $2
+			AND EXTRACT(DAY FROM (NOW() - COALESCE(MAX(ue.event_at), la.assigned_at))) >= ` + fmt.Sprintf("%d", days) + `
 		ORDER BY days_inactive DESC
 	`
 
-	result := d.db.WithContext(ctx).Raw(query, appID, days).Scan(&inactiveUsers)
+	args := []interface{}{}
+	argIdx := 1
+
+	// Add company filter
+	if companyCode != "" {
+		query = strings.Replace(query, "WHERE la.revoked_at IS NULL", fmt.Sprintf("WHERE la.revoked_at IS NULL AND la.company_code = $%d", argIdx), 1)
+		args = append(args, companyCode)
+		argIdx++
+	}
+
+	// Days is now hardcoded in HAVING clause, no need to add to args
+	// Add limit
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argIdx)
+		args = append(args, limit)
+		argIdx++
+	}
+
+	result := d.db.WithContext(ctx).Raw(query, args...).Scan(&inactiveUsers)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 
 	return inactiveUsers, nil
+}
+
+func (d *databaseRepository) GetUsersInDepartmentNeedingLicense(ctx context.Context, companyCode, departmentCode, appName string) ([]int64, error) {
+	var userIDs []int64
+
+	query := `
+		SELECT DISTINCT u.id
+		FROM users u
+		JOIN companies c ON c.code = u.company_code
+		JOIN departments d ON d.code = u.department_code AND d.company_id = c.id
+		JOIN apps a ON a.name = $3
+		WHERE u.company_code = $1 
+		  AND d.code = $2
+		  AND u.id NOT IN (
+			SELECT la.user_id
+			FROM license_assignments la
+			WHERE la.app_id = a.id 
+			  AND la.revoked_at IS NULL
+		  )
+		  AND u.status = 'active'
+		LIMIT 100
+	`
+
+	result := d.db.WithContext(ctx).Raw(query, companyCode, departmentCode, appName).Scan(&userIDs)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return userIDs, nil
+}
+
+func (d *databaseRepository) GetConsolidationOpportunities(ctx context.Context, companyCode string) (*[]entities.GroupConsolidationOpp, error) {
+	opportunities := []entities.GroupConsolidationOpp{}
+	query := d.db.WithContext(ctx).Preload("App")
+
+	if companyCode != "" {
+		query = query.Where("company_code = ? OR company_code IS NULL", companyCode)
+	}
+
+	result := query.Order("potential_saving_amt DESC").Find(&opportunities)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &opportunities, nil
+}
+
+func (d *databaseRepository) GetConsolidationOpportunityByID(ctx context.Context, id int64) (*entities.GroupConsolidationOpp, error) {
+	opportunity := &entities.GroupConsolidationOpp{}
+
+	result := d.db.WithContext(ctx).Preload("App").First(opportunity, id)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return opportunity, nil
 }
 
 func New(db *gorm.DB) *databaseRepository {

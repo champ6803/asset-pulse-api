@@ -245,3 +245,19 @@ type SimilarApp struct {
 	CreatedAt       time.Time  `gorm:"default:now()" json:"created_at"`
 	UpdatedAt       *time.Time `json:"updated_at"`
 }
+
+type GroupConsolidationOpp struct {
+	ID                 int64      `gorm:"primaryKey" json:"id"`
+	CompanyCode        *string    `json:"company_code"`
+	AppID              *int64     `json:"app_id"`
+	CurrentContractIDs []int64    `gorm:"type:bigint[]" json:"current_contract_ids"`
+	PotentialSavingAmt *float64   `json:"potential_saving_amt"`
+	Rationale          *string    `gorm:"type:text" json:"rationale"`
+	SnapshotJSON       []byte     `gorm:"type:jsonb" json:"snapshot_json"`
+	Status             *string    `json:"status"`
+	CreatedAt          time.Time  `gorm:"default:now()" json:"created_at"`
+	CreatedBy          *int64     `json:"created_by"`
+	UpdatedAt          *time.Time `json:"updated_at"`
+	UpdatedBy          *int64     `json:"updated_by"`
+	App                *App       `gorm:"foreignKey:AppID" json:"app,omitempty"`
+}

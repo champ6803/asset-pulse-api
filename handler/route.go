@@ -2,6 +2,7 @@ package handler
 
 import (
 	"asset-pulse-api/middleware"
+	dbRepo "asset-pulse-api/repositories/database"
 	"asset-pulse-api/services/ai"
 	"asset-pulse-api/usecase"
 	"asset-pulse-api/utils/jwt"
@@ -17,6 +18,7 @@ type Handler struct {
 	catalogSearchService *ai.CatalogSearchService
 	jwtManager           *jwt.JWTManager
 	authMiddleware       *middleware.AuthMiddleware
+	dbRepo               dbRepo.DatabaseRepository
 }
 
 type HandlerOptions struct {
@@ -24,6 +26,7 @@ type HandlerOptions struct {
 	AIService            ai.AIService
 	CatalogSearchService *ai.CatalogSearchService
 	JWTSecret            string
+	DBRepo               dbRepo.DatabaseRepository
 }
 
 func New(handler *Handler) *gin.Engine {
@@ -117,9 +120,8 @@ func New(handler *Handler) *gin.Engine {
 			groupCto.GET("/dashboard", func(c *gin.Context) {
 				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
 			})
-			groupCto.GET("/consolidation", func(c *gin.Context) {
-				c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented yet"})
-			})
+			groupCto.GET("/consolidation", handler.GetConsolidationOpportunities)
+			groupCto.GET("/consolidation/:id", handler.GetConsolidationOpportunityByID)
 		}
 	}
 
@@ -136,5 +138,6 @@ func NewHandler(options HandlerOptions) *Handler {
 		catalogSearchService: options.CatalogSearchService,
 		jwtManager:           jwtManager,
 		authMiddleware:       authMiddleware,
+		dbRepo:               options.DBRepo,
 	}
 }

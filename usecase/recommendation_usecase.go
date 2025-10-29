@@ -178,6 +178,16 @@ func (u *useCase) GetSeatOptimization(ctx context.Context, in *models.SeatOptimi
 			appData.AppName = rec.AppName
 		}
 
+		// Calculate pending requests for reallocation target department
+		pendingRequests := 0
+		if rec.Action == "reallocate" && rec.ToDepartment != "" {
+			// Query users in target department who need licenses for this app
+			pendingUsers, err := u.dbRepo.GetUsersInDepartmentNeedingLicense(ctx, in.CompanyCode, rec.ToDepartment, rec.AppName)
+			if err == nil {
+				pendingRequests = len(pendingUsers)
+			}
+		}
+
 		opp := models.OptimizationOpportunity{
 			ID:                   fmt.Sprintf("opt-%d", len(optimizations)+1),
 			AppID:                appData.AppID,
@@ -188,7 +198,7 @@ func (u *useCase) GetSeatOptimization(ctx context.Context, in *models.SeatOptimi
 			CompanyCode:          in.CompanyCode,
 			Action:               rec.Action,
 			InactiveUsers:        appData.InactiveUsers,
-			PendingRequests:      0,
+			PendingRequests:      pendingRequests,
 			CanReallocate:        0,
 			PotentialSavings:     rec.PotentialSavings,
 			RiskLevel:            rec.RiskLevel,

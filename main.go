@@ -72,6 +72,7 @@ func main() {
 		AIService:            aiService,
 		CatalogSearchService: catalogSearchService,
 		JWTSecret:            config.JWTSecret,
+		DBRepo:               dbRepo,
 	})
 
 	router := gin.Default()
