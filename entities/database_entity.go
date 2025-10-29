@@ -387,6 +387,8 @@ type PendingRequestWithDetails struct {
 	// App details (from purchase_template_items join)
 	AppID   *int64  `json:"app_id"`
 	AppName *string `json:"app_name"`
+}
+
 type GroupConsolidationOpp struct {
 	ID                 int64      `gorm:"primaryKey" json:"id"`
 	CompanyCode        *string    `json:"company_code"`
