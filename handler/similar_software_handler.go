@@ -102,12 +102,6 @@ func (h *Handler) GetSimilarSoftwareClusters(c *gin.Context) {
 		return
 	}
 
-	if len(licenses) == 0 {
-		output := transformer.SuccessResponse(http.StatusOK, []SimilarSoftwareClusterResponse{})
-		c.JSON(http.StatusOK, output)
-		return
-	}
-
 	// Step 2: If app_name is provided, use catalog search to find similar apps and filter licenses
 	var searchResults []ai.SearchResult
 	var similarAppNames map[string]bool    // Set of app names from search results
@@ -221,6 +215,14 @@ func (h *Handler) GetSimilarSoftwareClusters(c *gin.Context) {
 	}
 
 	if len(filteredLicenses) == 0 {
+		// If subsidiaries were requested but no data found, return 500 error
+		if len(selectedSubsidiaries) > 0 {
+			err := fmt.Errorf("no data found for requested subsidiaries: %v", selectedSubsidiaries)
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+			logger.Error(ctx, fmt.Sprintf("No data found for requested subsidiaries: %v", selectedSubsidiaries))
+			c.JSON(http.StatusInternalServerError, res)
+			return
+		}
 		output := transformer.SuccessResponse(http.StatusOK, []SimilarSoftwareClusterResponse{})
 		c.JSON(http.StatusOK, output)
 		return
@@ -308,12 +310,46 @@ func (h *Handler) GetSimilarSoftwareClusters(c *gin.Context) {
 				CurrentCostYear: appList[0].CostYear,
 				Subsidiaries:    appList[0].Subsidiaries,
 			}
+
+			// Check if all requested subsidiaries are present in the result
+			if len(selectedSubsidiaries) > 0 {
+				resultSubsidiaries := make(map[string]bool)
+				for _, sub := range appList[0].Subsidiaries {
+					resultSubsidiaries[sub] = true
+				}
+
+				// Check which requested subsidiaries are missing from the result
+				missingSubsidiaries := []string{}
+				for _, requestedSub := range selectedSubsidiaries {
+					if !resultSubsidiaries[requestedSub] {
+						missingSubsidiaries = append(missingSubsidiaries, requestedSub)
+					}
+				}
+
+				// If any requested subsidiaries are missing, return 500 error
+				if len(missingSubsidiaries) > 0 {
+					err := fmt.Errorf("no data found for requested subsidiaries: %v (found: %v)", missingSubsidiaries, appList[0].Subsidiaries)
+					res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+					logger.Error(ctx, fmt.Sprintf("No data found for app_id=%d with requested subsidiaries: %v (found: %v)", *appID, missingSubsidiaries, appList[0].Subsidiaries))
+					c.JSON(http.StatusInternalServerError, res)
+					return
+				}
+			}
+
 			output := transformer.SuccessResponse(http.StatusOK, []SimilarSoftwareClusterResponse{cluster})
 			c.JSON(http.StatusOK, output)
 			return
 		}
 
 		// Empty response if no data
+		// If subsidiaries were requested but no data found, return 500 error
+		if len(selectedSubsidiaries) > 0 {
+			err := fmt.Errorf("no data found for app_id=%d with requested subsidiaries: %v", *appID, selectedSubsidiaries)
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+			logger.Error(ctx, fmt.Sprintf("No data found for app_id=%d with requested subsidiaries: %v", *appID, selectedSubsidiaries))
+			c.JSON(http.StatusInternalServerError, res)
+			return
+		}
 		output := transformer.SuccessResponse(http.StatusOK, []SimilarSoftwareClusterResponse{})
 		c.JSON(http.StatusOK, output)
 		return
@@ -321,6 +357,39 @@ func (h *Handler) GetSimilarSoftwareClusters(c *gin.Context) {
 
 	// Step 5: Transform licenses to clusters using category-based grouping
 	clusters := h.transformToClustersByCategory(filteredLicenses, searchResults, categoryMap)
+
+	// Check if all requested subsidiaries are present in the cluster results
+	if len(selectedSubsidiaries) > 0 {
+		// Collect all subsidiaries from all clusters
+		resultSubsidiaries := make(map[string]bool)
+		for _, cluster := range clusters {
+			for _, sub := range cluster.Subsidiaries {
+				resultSubsidiaries[sub] = true
+			}
+		}
+
+		// Check which requested subsidiaries are missing from the result
+		missingSubsidiaries := []string{}
+		for _, requestedSub := range selectedSubsidiaries {
+			if !resultSubsidiaries[requestedSub] {
+				missingSubsidiaries = append(missingSubsidiaries, requestedSub)
+			}
+		}
+
+		// If any requested subsidiaries are missing, return 500 error
+		if len(missingSubsidiaries) > 0 {
+			// Get list of found subsidiaries for logging
+			foundSubsidiaries := make([]string, 0, len(resultSubsidiaries))
+			for sub := range resultSubsidiaries {
+				foundSubsidiaries = append(foundSubsidiaries, sub)
+			}
+			err := fmt.Errorf("no data found for requested subsidiaries: %v (found: %v)", missingSubsidiaries, foundSubsidiaries)
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+			logger.Error(ctx, fmt.Sprintf("No data found for requested subsidiaries: %v (found: %v)", missingSubsidiaries, foundSubsidiaries))
+			c.JSON(http.StatusInternalServerError, res)
+			return
+		}
+	}
 
 	output := transformer.SuccessResponse(http.StatusOK, clusters)
 	c.JSON(http.StatusOK, output)
