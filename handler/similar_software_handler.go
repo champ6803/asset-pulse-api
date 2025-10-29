@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"asset-pulse-api/entities"
 	"asset-pulse-api/utils/logger"
 	"asset-pulse-api/utils/transformer"
 	"fmt"
@@ -23,8 +24,10 @@ func (h *Handler) GetSimilarSoftwareClusters(c *gin.Context) {
 	}()
 
 	companyCode := c.Query("company_code")
+	selectedSubsidiaries := c.QueryArray("subsidiaries") // Support multiple subsidiaries filter
+	_ = c.Query("app_name")                              // Support app name search (reserved for future use)
 
-	// For now, reuse consolidation opportunities as cluster snapshots
+	// Get consolidation opportunities
 	data, err := h.dbRepo.GetConsolidationOpportunities(ctx, companyCode)
 	if err != nil {
 		res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
@@ -32,6 +35,46 @@ func (h *Handler) GetSimilarSoftwareClusters(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, res)
 		return
 	}
+
+	// Enrich with subsidiaries data from license_assignments
+	if data != nil && len(*data) > 0 {
+		appIDs := make([]int64, 0)
+		for _, opp := range *data {
+			if opp.AppID != nil {
+				appIDs = append(appIDs, *opp.AppID)
+			}
+		}
+
+		subsidiariesMap, err := h.dbRepo.GetAppsWithSubsidiaries(ctx, appIDs)
+		if err == nil && len(subsidiariesMap) > 0 {
+			// Enrich each opportunity with subsidiaries from license_assignments
+			// Store in a custom response structure
+			type EnrichedOpportunity struct {
+				entities.GroupConsolidationOpp
+				Subsidiaries []string `json:"subsidiaries"`
+			}
+
+			enriched := make([]EnrichedOpportunity, 0, len(*data))
+			for _, opp := range *data {
+				subsidiaries := []string{}
+				if opp.AppID != nil {
+					if subs, ok := subsidiariesMap[*opp.AppID]; ok {
+						subsidiaries = subs
+					}
+				}
+				enriched = append(enriched, EnrichedOpportunity{
+					GroupConsolidationOpp: opp,
+					Subsidiaries:          subsidiaries,
+				})
+			}
+
+			output := transformer.SuccessResponse(http.StatusOK, enriched)
+			c.JSON(http.StatusOK, output)
+			return
+		}
+	}
+
+	_ = selectedSubsidiaries // Reserved for future DB-level filtering
 
 	output := transformer.SuccessResponse(http.StatusOK, data)
 	c.JSON(http.StatusOK, output)

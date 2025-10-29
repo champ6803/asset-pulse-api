@@ -57,6 +57,9 @@ type Usecase interface {
 	UpsertGroupedSoftware(ctx context.Context, rawJSON []byte) error
 	// User Licenses
 	GetUserLicenses(ctx context.Context, userID int64, search, status string) (*models.GetUserLicensesResponse, error)
+
+	// Companies
+	GetCompanies(ctx context.Context) (*models.GetCompaniesResponse, error)
 }
 
 type UsecaseOptions struct {

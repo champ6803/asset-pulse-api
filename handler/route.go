@@ -79,6 +79,9 @@ func New(handler *Handler) *gin.Engine {
 		protected.GET("/users", handler.GetUsers)
 		protected.GET("/me", handler.GetCurrentUser)
 
+		// Companies routes
+		protected.GET("/companies", handler.GetCompanies)
+
 		// License routes
 		licenses := protected.Group("/licenses")
 		{

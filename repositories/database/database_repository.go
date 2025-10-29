@@ -62,6 +62,12 @@ type DatabaseRepository interface {
 	GetLicenseUsageAnalytics(ctx context.Context, companyCode, departmentCode, appName string) ([]LicenseUsageAnalytic, error)
 	GetInactiveUsers(ctx context.Context, companyCode string, appID int64, days int, limit int) ([]InactiveUserAnalytic, error)
 	GetUsersInDepartmentNeedingLicense(ctx context.Context, companyCode, departmentCode, appName string) ([]int64, error)
+
+	// Companies
+	GetCompanies(ctx context.Context) ([]entities.Company, error)
+
+	// Similar Software - Get apps with subsidiaries
+	GetAppsWithSubsidiaries(ctx context.Context, appIDs []int64) (map[int64][]string, error)
 }
 
 // UserLicenseAssignment represents a user's license with aggregated data from multiple tables
@@ -847,13 +853,21 @@ func (d *databaseRepository) GetUsersInDepartmentNeedingLicense(ctx context.Cont
 
 func (d *databaseRepository) GetConsolidationOpportunities(ctx context.Context, companyCode string) (*[]entities.GroupConsolidationOpp, error) {
 	opportunities := []entities.GroupConsolidationOpp{}
+
+	// Preload App and Vendor relationships
+	// Note: Vendor relationship needs to be defined in App entity with gorm tags
 	query := d.db.WithContext(ctx).Preload("App")
 
+	// Only return group-level opportunities (company_code IS NULL)
+	// or specific company if provided
 	if companyCode != "" {
 		query = query.Where("company_code = ? OR company_code IS NULL", companyCode)
+	} else {
+		// Default: only group-level opportunities
+		query = query.Where("company_code IS NULL")
 	}
 
-	result := query.Order("potential_saving_amt DESC").Find(&opportunities)
+	result := query.Order("potential_saving_amt DESC NULLS LAST").Find(&opportunities)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -870,6 +884,49 @@ func (d *databaseRepository) GetConsolidationOpportunityByID(ctx context.Context
 	}
 
 	return opportunity, nil
+}
+
+func (d *databaseRepository) GetCompanies(ctx context.Context) ([]entities.Company, error) {
+	var companies []entities.Company
+	result := d.db.WithContext(ctx).Order("code ASC").Find(&companies)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return companies, nil
+}
+
+func (d *databaseRepository) GetAppsWithSubsidiaries(ctx context.Context, appIDs []int64) (map[int64][]string, error) {
+	if len(appIDs) == 0 {
+		return make(map[int64][]string), nil
+	}
+
+	type Result struct {
+		AppID       int64  `gorm:"column:app_id"`
+		CompanyCode string `gorm:"column:company_code"`
+	}
+
+	var results []Result
+	err := d.db.WithContext(ctx).
+		Table("license_assignments").
+		Select("DISTINCT app_id, company_code").
+		Where("app_id IN ?", appIDs).
+		Where("revoked_at IS NULL").
+		Where("company_code IS NOT NULL").
+		Find(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by app_id
+	subsidiaryMap := make(map[int64][]string)
+	for _, r := range results {
+		if r.CompanyCode != "" {
+			subsidiaryMap[r.AppID] = append(subsidiaryMap[r.AppID], r.CompanyCode)
+		}
+	}
+
+	return subsidiaryMap, nil
 }
 
 func New(db *gorm.DB) *databaseRepository {
