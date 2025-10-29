@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
+	"strings"
+	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 type SoftwareLicense struct {
@@ -24,169 +24,91 @@ type GroupedSoftwareResponse struct {
 }
 
 type SoftwareGroupingService struct {
-	client       *azopenai.Client
-	deploymentID string
+	client *openai.Client
+	model  string
 }
 
-func NewSoftwareGroupingService(endpoint, deploymentID string) (*SoftwareGroupingService, error) {
-	// cred, err := azidentity.NewDefaultAzureCredential(nil)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to get Azure credentials: %w", err)
-	// }
+const (
+	groupingModelDefault = "gpt-4o-mini"
+	maxTokensDefault     = 4000
+	requestTimeout       = 60 * time.Second
+)
 
-	// client, err := azopenai.NewClient(endpoint, cred, nil)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create Azure OpenAI client: %w", err)
-	// }
-
-	apiKey := os.Getenv("AZURE_OPENAI_API_KEY")
+func NewSoftwareGroupingService(apiKey string) (*SoftwareGroupingService, error) {
 	if apiKey == "" {
-		panic("missing AZURE_OPENAI_API_KEY")
+		return nil, fmt.Errorf("missing OpenAI API key")
 	}
 
-	// create the credential
-	cred := azcore.NewKeyCredential(apiKey)
-	client, err := azopenai.NewClientWithKeyCredential(endpoint, cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Azure OpenAI client: %w", err)
-	}
+	client := openai.NewClient(apiKey)
 
 	return &SoftwareGroupingService{
-		client:       client,
-		deploymentID: deploymentID,
+		client: client,
+		model:  groupingModelDefault,
 	}, nil
 }
 
 func (s *SoftwareGroupingService) GroupSoftwareLicenses(ctx context.Context, licenses []SoftwareLicense) ([]GroupedSoftwareResponse, error) {
-	inputJSON, err := json.MarshalIndent(licenses, "", "  ")
+	// Use compact JSON to reduce token count and speed up processing
+	inputJSON, err := json.Marshal(licenses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal input: %w", err)
 	}
 
-	systemPrompt := `
-You are an expert enterprise software analyst.
+	systemPrompt := `You are an expert enterprise software analyst. Normalize software names (fix typos, unify variants), group them into logical enterprise categories (Design Tools, Developer Tools, Project Management, Business Intelligence, Communication & Collaboration, IT Service Management, Cloud Platforms, Productivity Suites), preserve company usage as separate items with their own used_by_company_name and thb_price_per_year, and provide real logo/image URLs from public sources (Wikipedia, Wikimedia, official sites).
 
-You will receive a JSON array of software licenses purchased by various subsidiaries. Each license has:
-- name: string — the software name (may contain typos or variations)
-- thb_price_per_year: number — the annual license cost in Thai Baht
-- used_by_company_name: string — the subsidiary or company that purchased it
+Return ONLY valid JSON array (no markdown/code blocks):
+[{"name":"Group name","description":"Brief description","items":[{"name":"Normalized name","image":"real_url","thb_price_per_year":number,"used_by_company_name":"Company"}],"common_features":["Feature1","Feature2","Feature3"]}]
 
-Your objectives:
-1. **Normalize software names**: Correct typos and unify naming variants (e.g., "Figam" → "Figma", "Jira SW" → "Jira Software").
-2. **Group software** into logical enterprise categories such as:
-   - Design Tools
-   - Developer Tools
-   - Project Management
-   - Business Intelligence
-   - Communication & Collaboration
-   - IT Service Management
-   - Cloud Platforms
-   - Productivity Suites
-   (Add more if appropriate based on the data.)
-3. **Preserve company usage**: If multiple subsidiaries purchased the same software, include **each usage as a separate item** within the same group, with their own "used_by_company_name" and "thb_price_per_year".
-4. **Provide accurate representative images**: Use **real, verifiable logo or product image URLs** from the public internet (e.g., company official websites, Wikipedia, or reputable sources like logos-world.net, Wikimedia, or product-cdn URLs).
+Rules: Valid JSON only. Normalize identical software names consistently. Keep separate entries per subsidiary. Use real image URLs. Include ≥3 common features per group.`
 
-Output Format:
-You must output a valid JSON array of group objects with this exact structure:
+	userPrompt := fmt.Sprintf("Group these licenses:\n%s", string(inputJSON))
 
-[
-  {
-    "name": string,               // Group name
-    "description": string,        // Description of the group
-    "items": [
-      {
-        "name": string,           // Normalized software name
-        "image": string,          // Realistic valid image URL from the internet
-        "thb_price_per_year": number,
-        "used_by_company_name": string
-      }
-    ],
-    "common_features": [string]   // List of features common to this software group
-  }
-]
+	// Add timeout to context
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
 
-Additional Rules:
-- The **output must be valid JSON only** (no comments, explanations, or markdown).
-- The **same software name** should always be normalized identically across subsidiaries.
-- Each "items" array should contain **distinct entries** for each subsidiary that uses the same software.
-- Do not fabricate image URLs — use **real images from credible online sources**.
-- Each group must have a concise but informative **description** and **at least three common features**.
-
-Example Output:
-
-[
-  {
-    "name": "Design Tools",
-    "description": "Software used for UI/UX design, prototyping, and collaboration between designers and developers.",
-    "items": [
-      {
-        "name": "Figma",
-        "image": "https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
-        "thb_price_per_year": 4800,
-        "used_by_company_name": "Company A"
-      },
-      {
-        "name": "Figma",
-        "image": "https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
-        "thb_price_per_year": 5100,
-        "used_by_company_name": "Company B"
-      }
-    ],
-    "common_features": ["Collaboration", "Design Systems", "Prototyping"]
-  },
-  {
-    "name": "Project Management",
-    "description": "Tools used to plan, track, and manage tasks across teams.",
-    "items": [
-      {
-        "name": "Jira Software",
-        "image": "https://upload.wikimedia.org/wikipedia/commons/8/8e/Jira_Software_logo.svg",
-        "thb_price_per_year": 12000,
-        "used_by_company_name": "Company C"
-      }
-    ],
-    "common_features": ["Agile Boards", "Task Tracking", "Sprint Management"]
-  }
-]
-`
-
-	userPrompt := fmt.Sprintf(
-		"Here is the input JSON array of software licenses:\n\n%s\n\nPlease generate the grouped structured output as specified.",
-		string(inputJSON),
-	)
-
-	messages := []azopenai.ChatRequestMessageClassification{
-		&azopenai.ChatRequestSystemMessage{
-			Content: azopenai.NewChatRequestSystemMessageContent(systemPrompt),
+	resp, err := s.client.CreateChatCompletion(ctxWithTimeout, openai.ChatCompletionRequest{
+		Model: s.model,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: systemPrompt,
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: userPrompt,
+			},
 		},
-		&azopenai.ChatRequestUserMessage{
-			Content: azopenai.NewChatRequestUserMessageContent(userPrompt),
-		},
-	}
+		Temperature: 0.1, // Lower temperature for faster, more deterministic output
+		MaxTokens:   maxTokensDefault,
+	})
 
-	req := azopenai.ChatCompletionsOptions{
-		Messages:       messages,
-		DeploymentName: &s.deploymentID,
-		Temperature:    toPtr[float32](0.3),
-	}
-
-	resp, err := s.client.GetChatCompletions(ctx, req, nil)
 	if err != nil {
-		return nil, fmt.Errorf("azure openai api error: %w", err)
+		// Check if it's a timeout error
+		if ctxWithTimeout.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("openai request timeout after %v: %w", requestTimeout, err)
+		}
+		return nil, fmt.Errorf("openai api error: %w", err)
 	}
 
-	if len(resp.Choices) == 0 || resp.Choices[0].Message.Content == nil {
-		return nil, fmt.Errorf("no valid response from Azure OpenAI")
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("no valid response from OpenAI")
 	}
 
-	content := *resp.Choices[0].Message.Content
+	content := strings.TrimSpace(resp.Choices[0].Message.Content)
+
+	// Clean up JSON if wrapped in markdown code blocks
+	if strings.HasPrefix(content, "```json") || strings.HasPrefix(content, "```") {
+		content = strings.TrimPrefix(content, "```json")
+		content = strings.TrimPrefix(content, "```")
+		content = strings.TrimSuffix(content, "```")
+		content = strings.TrimSpace(content)
+	}
 
 	var result []GroupedSoftwareResponse
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON output: %w", err)
+		return nil, fmt.Errorf("failed to parse JSON output (content length: %d): %w", len(content), err)
 	}
 
 	return result, nil
 }
-
-func toPtr[T any](v T) *T { return &v }

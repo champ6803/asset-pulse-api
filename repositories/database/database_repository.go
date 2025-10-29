@@ -68,6 +68,9 @@ type DatabaseRepository interface {
 
 	// Similar Software - Get apps with subsidiaries
 	GetAppsWithSubsidiaries(ctx context.Context, appIDs []int64) (map[int64][]string, error)
+
+	// Similar Software - Get detailed software licenses with pricing and subsidiaries
+	GetSimilarSoftwareLicenses(ctx context.Context, companyCode string, appName *string, subsidiaries []string, appID *int64) ([]SimilarSoftwareLicense, error)
 }
 
 // UserLicenseAssignment represents a user's license with aggregated data from multiple tables
@@ -112,6 +115,21 @@ type InactiveUserAnalytic struct {
 	LicenseTier    *string `json:"license_tier"`
 	LastUsedAt     string  `json:"last_used_at"`
 	DaysInactive   int     `json:"days_inactive"`
+}
+
+// SimilarSoftwareLicense represents a software license with detailed pricing and usage info
+type SimilarSoftwareLicense struct {
+	AppID         int64   `json:"app_id"`
+	AppName       string  `json:"app_name"`
+	AppCategory   *string `json:"app_category"`
+	VendorID      *int64  `json:"vendor_id"`
+	VendorName    *string `json:"vendor_name"`
+	CompanyCode   string  `json:"company_code"`
+	Users         int     `json:"users"`          // Count of active users for this app+subsidiary
+	PricePerSeat  float64 `json:"price_per_seat"` // THB per seat per period
+	BillingPeriod string  `json:"billing_period"` // monthly/yearly
+	Currency      string  `json:"currency"`
+	LicenseTier   *string `json:"license_tier"`
 }
 
 func (d *databaseRepository) GetUsers(ctx context.Context, companyCode *string, status *string, limit int, offset int) (*[]entities.User, error) {
@@ -927,6 +945,126 @@ func (d *databaseRepository) GetAppsWithSubsidiaries(ctx context.Context, appIDs
 	}
 
 	return subsidiaryMap, nil
+}
+
+func (d *databaseRepository) GetSimilarSoftwareLicenses(ctx context.Context, companyCode string, appName *string, subsidiaries []string, appID *int64) ([]SimilarSoftwareLicense, error) {
+	var results []SimilarSoftwareLicense
+
+	query := d.db.WithContext(ctx).
+		Table("license_assignments la").
+		Select(`
+			a.id as app_id,
+			a.name as app_name,
+			a.category as app_category,
+			v.id as vendor_id,
+			v.name as vendor_name,
+			la.company_code,
+			COUNT(DISTINCT la.user_id) as users,
+			COALESCE(
+				-- Priority 1: contract_terms.price_per_seat
+				(SELECT ct.price_per_seat 
+				 FROM contract_terms ct 
+				 JOIN contracts c ON c.id = ct.contract_id
+				 WHERE ct.app_id = a.id 
+				   AND (ct.company_code = la.company_code OR ct.company_code IS NULL)
+				   AND (c.status = 'active' OR c.status IS NULL)
+				   AND ct.price_per_seat IS NOT NULL
+				 ORDER BY CASE WHEN ct.company_code = la.company_code THEN 0 ELSE 1 END
+				 LIMIT 1),
+				-- Priority 2: price_books.list_price (monthly)
+				(SELECT pb.list_price 
+				 FROM price_books pb 
+				 WHERE pb.app_id = a.id 
+				   AND pb.unit LIKE 'seat%'
+				   AND (pb.valid_from IS NULL OR pb.valid_from <= CURRENT_DATE)
+				   AND (pb.valid_to IS NULL OR pb.valid_to >= CURRENT_DATE)
+				 ORDER BY 
+				   CASE WHEN LOWER(pb.tier) = 'pro' THEN 0
+				        WHEN LOWER(pb.tier) = 'standard' THEN 1
+				        ELSE 2 END,
+				   pb.valid_to DESC NULLS LAST,
+				   pb.valid_from DESC NULLS LAST
+				 LIMIT 1),
+				500.0
+			) as price_per_seat,
+			COALESCE(
+				(SELECT ct.uom 
+				 FROM contract_terms ct 
+				 JOIN contracts c ON c.id = ct.contract_id
+				 WHERE ct.app_id = a.id 
+				   AND (ct.company_code = la.company_code OR ct.company_code IS NULL)
+				   AND (c.status = 'active' OR c.status IS NULL)
+				 ORDER BY CASE WHEN ct.company_code = la.company_code THEN 0 ELSE 1 END
+				 LIMIT 1),
+				'monthly'
+			) as billing_period,
+			COALESCE(
+				(SELECT c.currency 
+				 FROM contract_terms ct 
+				 JOIN contracts c ON c.id = ct.contract_id
+				 WHERE ct.app_id = a.id 
+				   AND (ct.company_code = la.company_code OR ct.company_code IS NULL)
+				   AND (c.status = 'active' OR c.status IS NULL)
+				 ORDER BY CASE WHEN ct.company_code = la.company_code THEN 0 ELSE 1 END
+				 LIMIT 1),
+				(SELECT pb.currency 
+				 FROM price_books pb 
+				 WHERE pb.app_id = a.id 
+				   AND (pb.valid_from IS NULL OR pb.valid_from <= CURRENT_DATE)
+				   AND (pb.valid_to IS NULL OR pb.valid_to >= CURRENT_DATE)
+				 ORDER BY pb.valid_to DESC NULLS LAST
+				 LIMIT 1),
+				'THB'
+			) as currency,
+			la.license_tier
+		`).
+		Joins("INNER JOIN apps a ON la.app_id = a.id").
+		Joins(`LEFT JOIN LATERAL (
+			SELECT c.vendor_id 
+			FROM contract_terms ct
+			JOIN contracts c ON c.id = ct.contract_id
+			WHERE ct.app_id = a.id
+			  AND (ct.company_code = la.company_code OR ct.company_code IS NULL)
+			  AND (c.status = 'active' OR c.status IS NULL)
+			ORDER BY CASE WHEN ct.company_code = la.company_code THEN 0 ELSE 1 END
+			LIMIT 1
+		) cv ON true`).
+		Joins("LEFT JOIN vendors v ON v.id = cv.vendor_id").
+		Where("la.revoked_at IS NULL").
+		Where("a.status = ?", "Active")
+
+	// Filter by company code if provided
+	if companyCode != "" {
+		query = query.Where("la.company_code = ?", companyCode)
+	}
+
+	// Filter by subsidiaries if provided
+	// Note: If subsidiaries are specified, we only want data for those specific subsidiaries
+	if len(subsidiaries) > 0 {
+		query = query.Where("la.company_code IN ?", subsidiaries)
+	}
+
+	// Filter by app name if provided
+	if appName != nil && *appName != "" {
+		searchPattern := "%" + *appName + "%"
+		query = query.Where("a.name ILIKE ?", searchPattern)
+	}
+
+	// Filter by app_id if provided (to show only one app in datatable)
+	if appID != nil {
+		query = query.Where("a.id = ?", *appID)
+	}
+
+	// Group by app_id, company_code to get per-subsidiary data
+	query = query.Group("a.id, a.name, a.category, v.id, v.name, la.company_code, la.license_tier")
+
+	// Execute query
+	result := query.Find(&results)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return results, nil
 }
 
 func New(db *gorm.DB) *databaseRepository {

@@ -3,8 +3,6 @@ package handler
 import (
 	"asset-pulse-api/entities"
 	"asset-pulse-api/handler/dto"
-	"asset-pulse-api/services"
-	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -98,52 +96,11 @@ type GroupGenerationRequest struct {
 	// Optionally you can add flags here in the future
 }
 
+// GenerateGroupedSoftware is deprecated - grouping is now done via category-based approach in GetSimilarSoftwareClusters
+// This endpoint is kept for backward compatibility but now returns a deprecation notice
 func (h *Handler) GenerateGroupedSoftware(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	// 1. Query all existing licenses
-	licenses, err := h.useCase.GetAllLicenses(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get software licenses: " + err.Error()})
-		return
-	}
-
-	if len(licenses) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "no software licenses found"})
-		return
-	}
-
-	// 2. Convert entities to service input type
-	var svcInput []services.SoftwareLicense
-	for _, l := range licenses {
-		svcInput = append(svcInput, services.SoftwareLicense{
-			Name:              l.Name,
-			THBPricePerYear:   l.THBPricePerYear,
-			UsedByCompanyName: l.UsedByCompanyName,
-		})
-	}
-
-	// 3. Call Azure OpenAI service
-	groupedSvc := h.softwareGroupingService
-	grouped, err := groupedSvc.GroupSoftwareLicenses(ctx, svcInput)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate grouped software: " + err.Error()})
-		return
-	}
-
-	// 4. Marshal the response back to bytes for upsert
-	groupedBytes, err := json.Marshal(grouped)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal grouped software: " + err.Error()})
-		return
-	}
-
-	// 5. Upsert into DB
-	if err := h.useCase.UpsertGroupedSoftware(ctx, groupedBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upsert grouped software: " + err.Error()})
-		return
-	}
-
-	// 6. Return structured JSON
-	c.JSON(http.StatusOK, dto.Response[[]services.GroupedSoftwareResponse]{Data: grouped})
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error":   "This endpoint is deprecated. Please use /api/v1/similar-software/clusters instead which uses category-based grouping via CatalogSearchService.",
+		"message": "Grouping is now handled automatically by category from catalog search results",
+	})
 }

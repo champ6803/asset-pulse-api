@@ -3,7 +3,6 @@ package handler
 import (
 	"asset-pulse-api/middleware"
 	dbRepo "asset-pulse-api/repositories/database"
-	"asset-pulse-api/services"
 	"asset-pulse-api/services/ai"
 	"asset-pulse-api/usecase"
 	"asset-pulse-api/utils/jwt"
@@ -14,22 +13,20 @@ import (
 )
 
 type Handler struct {
-	useCase                 usecase.Usecase
-	aiService               ai.AIService
-	catalogSearchService    *ai.CatalogSearchService
-	jwtManager              *jwt.JWTManager
-	authMiddleware          *middleware.AuthMiddleware
-	dbRepo                  dbRepo.DatabaseRepository
-	softwareGroupingService *services.SoftwareGroupingService
+	useCase              usecase.Usecase
+	aiService            ai.AIService
+	catalogSearchService *ai.CatalogSearchService
+	jwtManager           *jwt.JWTManager
+	authMiddleware       *middleware.AuthMiddleware
+	dbRepo               dbRepo.DatabaseRepository
 }
 
 type HandlerOptions struct {
-	Usecase                 usecase.Usecase
-	AIService               ai.AIService
-	CatalogSearchService    *ai.CatalogSearchService
-	JWTSecret               string
-	DBRepo                  dbRepo.DatabaseRepository
-	SoftwareGroupingService *services.SoftwareGroupingService
+	Usecase              usecase.Usecase
+	AIService            ai.AIService
+	CatalogSearchService *ai.CatalogSearchService
+	JWTSecret            string
+	DBRepo               dbRepo.DatabaseRepository
 }
 
 func New(handler *Handler) *gin.Engine {
@@ -176,12 +173,11 @@ func NewHandler(options HandlerOptions) *Handler {
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
 
 	return &Handler{
-		useCase:                 options.Usecase,
-		aiService:               options.AIService,
-		catalogSearchService:    options.CatalogSearchService,
-		jwtManager:              jwtManager,
-		authMiddleware:          authMiddleware,
-		dbRepo:                  options.DBRepo,
-		softwareGroupingService: options.SoftwareGroupingService,
+		useCase:              options.Usecase,
+		aiService:            options.AIService,
+		catalogSearchService: options.CatalogSearchService,
+		jwtManager:           jwtManager,
+		authMiddleware:       authMiddleware,
+		dbRepo:               options.DBRepo,
 	}
 }

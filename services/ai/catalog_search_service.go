@@ -28,6 +28,7 @@ type CatalogItem struct {
 	Vendor          string
 	ProductName     string
 	Functionalities string
+	Category        string
 	Embedding       []float32
 }
 
@@ -37,6 +38,7 @@ type SearchResult struct {
 	Vendor          string  `json:"vendor"`
 	Functionalities string  `json:"functionalities"`
 	InputName       string  `json:"input_name"`
+	Category        string  `json:"category"`
 	Similarity      float64 `json:"similarity"`
 }
 
@@ -100,6 +102,15 @@ func (s *CatalogSearchService) Initialize(ctx context.Context) error {
 			continue
 		}
 
+		// Use category from DB if available, otherwise use normalized category
+		category := normalized.Category
+		if app.Category != nil && *app.Category != "" {
+			category = *app.Category
+		}
+		if category == "" {
+			category = "General"
+		}
+
 		// Create embedding for the normalized text
 		textToEmbed := normalized.Vendor + " " + normalized.ProductName + " " + normalized.Functionalities
 		embedding, err := s.createEmbedding(ctx, textToEmbed)
@@ -114,6 +125,7 @@ func (s *CatalogSearchService) Initialize(ctx context.Context) error {
 			Vendor:          normalized.Vendor,
 			ProductName:     normalized.ProductName,
 			Functionalities: normalized.Functionalities,
+			Category:        category,
 			Embedding:       embedding,
 		}
 
@@ -131,6 +143,7 @@ type NormalizedOutput struct {
 	Vendor          string `json:"vendor"`
 	ProductName     string `json:"product_name"`
 	Functionalities string `json:"functionalities"`
+	Category        string `json:"category"`
 }
 
 // normalizeDescription normalizes a product description using OpenAI
@@ -139,10 +152,11 @@ func (s *CatalogSearchService) normalizeDescription(ctx context.Context, text st
 1. vendor - precise vendor name
 2. product_name - concise, normalized commercial product name
 3. functionalities - return concise, functionality list of the software. try to not mention vendor-specific wording or specific vendor tool, while ok to return wording of industry-standard protocols.
+4. category - assign one enterprise category: Design Tools, Developer Tools, Project Management, Business Intelligence, Communication & Collaboration, IT Service Management, Cloud Platforms, Productivity Suites, or General if unclear.
 
 Example: 
   Input: 'Figma Organization license for PointX project 2025 3 seats purchaseID AA22343'
-  Output: {"vendor": "Figma", "product_name": "Figma Design", "functionalities": "Vector drawing and editing, collaborative design, prototyping, developer handoff"}
+  Output: {"vendor": "Figma", "product_name": "Figma Design", "functionalities": "Vector drawing and editing, collaborative design, prototyping, developer handoff", "category": "Design Tools"}
 
 Input: %s
 Output:`, text)
@@ -264,6 +278,7 @@ func (s *CatalogSearchService) Search(ctx context.Context, req *CatalogSearchReq
 			Vendor:          scores[i].item.Vendor,
 			Functionalities: scores[i].item.Functionalities,
 			InputName:       scores[i].item.InputName,
+			Category:        scores[i].item.Category,
 			Similarity:      math.Round(scores[i].score*10000) / 100, // Round to 2 decimal places
 		}
 	}

@@ -4,7 +4,6 @@ import (
 	config "asset-pulse-api/configs"
 	"asset-pulse-api/handler"
 	dbRepo "asset-pulse-api/repositories/database"
-	"asset-pulse-api/services"
 	"asset-pulse-api/services/ai"
 	"asset-pulse-api/usecase"
 	mygorm "asset-pulse-api/utils/gorm"
@@ -68,18 +67,12 @@ func main() {
 		OptimizationService: seatOptimizationService,
 	})
 
-	softwareGroupingService, svcErr := services.NewSoftwareGroupingService(config.AzureOpenaiUrl, config.AzureOpenaiModelName)
-	if svcErr != nil {
-
-	}
-
 	newHandler := handler.NewHandler(handler.HandlerOptions{
-		Usecase:                 uc,
-		AIService:               aiService,
-		CatalogSearchService:    catalogSearchService,
-		JWTSecret:               config.JWTSecret,
-		DBRepo:                  dbRepo,
-		SoftwareGroupingService: softwareGroupingService,
+		Usecase:              uc,
+		AIService:            aiService,
+		CatalogSearchService: catalogSearchService,
+		JWTSecret:            config.JWTSecret,
+		DBRepo:               dbRepo,
 	})
 
 	router := gin.Default()
