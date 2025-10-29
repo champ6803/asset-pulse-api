@@ -244,6 +244,7 @@ func NewRealAIService(apiKey string) *RealAIService {
 
 	return &RealAIService{
 		client: client,
+		model:  openai.GPT4oMini, // or openai.GPT4o, openai.GPT35Turbo
 	}
 }
 
