@@ -83,6 +83,7 @@ func New(handler *Handler) *gin.Engine {
 		ai := protected.Group("/ai")
 		{
 			ai.POST("/recommendations/jd-match", handler.GenerateJDRecommendations)
+			ai.POST("/recommendations/new-hire", handler.GetNewHireRecommendations)
 			ai.POST("/consolidation/memo", handler.GenerateConsolidationMemo)
 			ai.POST("/similarity", handler.CalculateSoftwareSimilarity)
 			ai.GET("/recommendations", handler.GetAIRecommendations) // New endpoint

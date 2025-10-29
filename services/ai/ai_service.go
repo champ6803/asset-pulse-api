@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -233,6 +234,33 @@ func (m *MockAIService) GenerateShortDescription(ctx context.Context, appName, c
 	return desc, nil
 }
 
+// extractJSONFromResponse extracts JSON from OpenAI response, handling markdown code blocks
+func extractJSONFromResponse(content string) string {
+	// Trim whitespace first
+	content = strings.TrimSpace(content)
+
+	// Remove markdown code blocks - handle various formats:
+	// ```json ... ```, ```JSON ... ```, ``` ... ```
+	if strings.HasPrefix(content, "```") {
+		// Find the first newline after the opening backticks
+		lines := strings.SplitN(content, "\n", 2)
+		if len(lines) > 1 {
+			// Remove the opening line with backticks (e.g., "```json" or "```")
+			content = lines[1]
+		} else {
+			// No newline, just remove the backticks directly
+			content = strings.TrimPrefix(content, "```json")
+			content = strings.TrimPrefix(content, "```JSON")
+			content = strings.TrimPrefix(content, "```")
+		}
+		// Remove closing backticks
+		content = strings.TrimSuffix(content, "```")
+		content = strings.TrimSpace(content)
+	}
+
+	return content
+}
+
 // Real AI Service Implementation
 type RealAIService struct {
 	client *openai.Client
@@ -320,6 +348,7 @@ Return the response as a JSON array with this structure:
 
 	var recommendations []SoftwareRecommendation
 	content := resp.Choices[0].Message.Content
+	content = extractJSONFromResponse(content)
 	if err := json.Unmarshal([]byte(content), &recommendations); err != nil {
 		return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
 	}
@@ -445,6 +474,7 @@ Return the response as JSON:
 
 	var result SimilarityResponse
 	content := resp.Choices[0].Message.Content
+	content = extractJSONFromResponse(content)
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse OpenAI response: %w", err)
 	}
@@ -479,7 +509,9 @@ func (r *RealAIService) GetAppRecommendationScores(ctx context.Context, prompt s
 		return "", fmt.Errorf("no response from OpenAI")
 	}
 
-	return resp.Choices[0].Message.Content, nil
+	content := resp.Choices[0].Message.Content
+	content = extractJSONFromResponse(content)
+	return content, nil
 }
 
 func (r *RealAIService) GenerateShortDescription(ctx context.Context, appName, category string, score float64) (string, error) {
