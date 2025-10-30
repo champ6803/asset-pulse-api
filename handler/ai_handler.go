@@ -324,14 +324,88 @@ func (h *Handler) GetNewHireRecommendations(c *gin.Context) {
 		return
 	}
 
-	// Basic validation per spec: require at least JD fields when no context available
-	if strings.TrimSpace(req.JobTitle) == "" && strings.TrimSpace(req.JobDescription) == "" {
-		res := transformer.ExceptionResponse(http.StatusBadRequest, fmt.Errorf("job_title and job_description are required"))
+	// Validation: allow either JD fields or app_name to drive the flow
+	if strings.TrimSpace(req.AppName) == "" && strings.TrimSpace(req.JobTitle) == "" && strings.TrimSpace(req.JobDescription) == "" {
+		res := transformer.ExceptionResponse(http.StatusBadRequest, fmt.Errorf("provide either app_name or both job_title and job_description"))
 		c.JSON(http.StatusBadRequest, res)
 		return
 	}
 
-	// Call AI service for JD recommendations
+	// If app_name provided, switch to catalog search service path immediately
+	if strings.TrimSpace(req.AppName) != "" && h.catalogSearchService != nil {
+		// Initialize if needed
+		if err := h.catalogSearchService.Initialize(ctx); err != nil {
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, err)
+			logger.Error(ctx, fmt.Sprintf("Catalog init error: %v", err))
+			c.JSON(http.StatusInternalServerError, res)
+			return
+		}
+
+		topK := req.Limit
+		if topK <= 0 {
+			topK = 5
+		}
+
+		searchReq := &ai.CatalogSearchRequest{Query: req.AppName, TopK: topK}
+		sResp, sErr := h.catalogSearchService.Search(ctx, searchReq)
+		if sErr != nil {
+			res := transformer.ExceptionResponse(http.StatusInternalServerError, sErr)
+			logger.Error(ctx, fmt.Sprintf("Catalog search error: %v", sErr))
+			c.JSON(http.StatusInternalServerError, res)
+			return
+		}
+
+		// Map catalog search results to SoftwareRecommendation shape
+		recs := make([]ai.SoftwareRecommendation, 0, len(sResp.Results))
+		for _, r := range sResp.Results {
+			// Split functionalities into features by comma
+			features := []string{}
+			if f := strings.TrimSpace(r.Functionalities); f != "" {
+				parts := strings.Split(f, ",")
+				for _, p := range parts {
+					if s := strings.TrimSpace(p); s != "" {
+						features = append(features, s)
+					}
+				}
+			}
+
+			rationale := fmt.Sprintf("Similar to '%s' in category %s. Vendor: %s. Product: %s.", req.AppName, r.Category, r.Vendor, r.ProductName)
+
+			recs = append(recs, ai.SoftwareRecommendation{
+				AppName:        r.InputName,
+				Category:       r.Category,
+				Tier:           "Standard",
+				RelevanceScore: r.Similarity, // already scaled 0-100
+				Cost:           0,            // unknown from catalog; keep 0
+				Rationale:      rationale,
+				Features:       features,
+				Alternatives:   []string{},
+			})
+		}
+
+		metadata := map[string]interface{}{
+			"job_title":             req.JobTitle,
+			"department":            req.Department,
+			"company_code":          req.CompanyCode,
+			"app_name_used":         true,
+			"app_name_searched":     req.AppName,
+			"similar_apps_searched": sResp.Results,
+		}
+
+		resp := NewHireRecommendationsResponse{
+			Recommendations: recs,
+			Confidence:      85, // heuristic similar to JD path
+			ProcessingTime:  "",
+			Total:           len(recs),
+			Metadata:        metadata,
+		}
+
+		output := transformer.SuccessResponse(http.StatusOK, resp)
+		c.JSON(http.StatusOK, output)
+		return
+	}
+
+	// Fallback to JD-based recommendations when app_name not provided
 	aiReq := &ai.JDRecommendationRequest{
 		JobTitle:       req.JobTitle,
 		JobDescription: req.JobDescription,
@@ -362,7 +436,11 @@ func (h *Handler) GetNewHireRecommendations(c *gin.Context) {
 		// Initialize once if needed
 		_ = h.catalogSearchService.Initialize(ctx)
 
-		searchReq := &ai.CatalogSearchRequest{Query: req.AppName, TopK: 10}
+		topK := req.Limit
+		if topK <= 0 {
+			topK = 10
+		}
+		searchReq := &ai.CatalogSearchRequest{Query: req.AppName, TopK: topK}
 		if sResp, sErr := h.catalogSearchService.Search(ctx, searchReq); sErr == nil {
 			// Build similarity map by input name
 			simMap := map[string]float64{}
@@ -377,15 +455,10 @@ func (h *Handler) GetNewHireRecommendations(c *gin.Context) {
 				})
 			}
 
-			// Attach similarity_score to matching recommendations by name
+			// Attach similarity_score to matching recommendations by name (kept in metadata)
 			for i := range aiResp.Recommendations {
 				key := strings.ToLower(aiResp.Recommendations[i].AppName)
 				if v, ok := simMap[key]; ok {
-					// encode similarity by appending into rationale and use cost as-is
-					// We can't change struct fields, so we place into metadata per spec-like UI
-					// no-op here; frontend expects optional similarity_score, but our struct doesn't have it
-					// We keep similarity in metadata only
-					// If needed later, we can extend model types
 					_ = v
 				}
 			}
